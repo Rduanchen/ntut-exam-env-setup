@@ -9,10 +9,12 @@
 ## Steps to run
 
 1. Clone the repository:
-   ```bash
-   git clone <repository_url>
-   cd <repository_directory>
-   ```
+
+```bash
+git clone https://github.com/Rduanchen/ntut-exam-env-setup
+cd ntut-exam-env-setup
+```
+
 2. install
 
 ```bash
@@ -20,9 +22,11 @@ sh ./install.sh
 ```
 
 3. Start the services using Docker Compose:
-   ```bash
-   docker-compose up -d
-   ```
+
+```bash
+docker-compose up -d
+```
+
 4. install python in piston
 
 ```bash
