@@ -21,6 +21,12 @@ cd ntut-exam-env-setup
 sh ./install.sh
 ```
 
+windows user can run
+
+```powershell
+.\install.ps1
+```
+
 3. Start the services using Docker Compose:
 
 ```bash
@@ -31,4 +37,10 @@ docker-compose up -d
 
 ```bash
 sh ./install-piston.sh
+```
+
+windows user can run
+
+```powershell
+.\install-piston.ps1
 ```
