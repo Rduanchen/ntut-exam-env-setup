@@ -4,6 +4,7 @@
 
 - Docker
 - Docker Compose
+- Git
 
 ## Steps to run
 
