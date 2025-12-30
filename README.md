@@ -10,6 +10,7 @@ Table of Contents
   - [Prerequisites](#prerequisites-1)
   - [Steps to run](#steps-to-run-1)
   - [Reccomand Software to use](#reccomand-software-to-use-1)
+- [Remote Control Script:](#remote-control-script)
 
 # Setup via Docker Compose
 
