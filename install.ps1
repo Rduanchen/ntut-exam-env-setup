@@ -25,6 +25,6 @@ function Clone-Or-Update {
 
 Clone-Or-Update -Url "https://github.com/Rduanchen/ntut-exam-system-backend.git" -Dir "backend"
 Clone-Or-Update -Url "https://github.com/Rduanchen/ntut-exam-system-ta-frontend.git" -Dir "frontend"
-Clone-Or-Update -Url "https://github.com/Rduanchen/ntut-exam-env-setup.git" -Dir "piston"
+Clone-Or-Update -Url "https://github.com/Rduanchen/piston.git" -Dir "piston"
 
 Write-Host "Done."

@@ -18,6 +18,6 @@ clone_or_update() {
 
 clone_or_update "https://github.com/Rduanchen/ntut-exam-system-backend.git" "backend"
 clone_or_update "https://github.com/Rduanchen/ntut-exam-system-ta-frontend.git" "frontend"
-clone_or_update "https://github.com/Rduanchen/ntut-exam-env-setup.git" "piston"
+clone_or_update "https://github.com/Rduanchen/piston.git" "piston"
 
 echo "Done."
