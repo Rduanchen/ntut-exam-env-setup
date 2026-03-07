@@ -35,13 +35,17 @@ fi
 # Create a .env file for the backend and put 256 bit AES key in it
 if [ ! -f "backend/.env" ]; then
   echo "Creating .env file for the backend..."
-  AES_KEY=$(openssl rand -hex 32)
+  SYSTEM_AES_KEY=$(openssl rand -hex 32)
   cat > backend/.env <<EOL
 # AES key for encrypting sensitive data (256 bits)
-AES_KEY=$AES_KEY
+SYSTEM_AES_KEY=$SYSTEM_AES_KEY
 EOL
 else
   echo ".env file already exists for the backend. Skipping creation."
+fi
+
+if [ ! -d "backend/src/upload/" ]; then
+  mkdir -p backend/src/upload/
 fi
 
 echo "Done."
