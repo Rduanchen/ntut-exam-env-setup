@@ -20,4 +20,28 @@ clone_or_update "https://github.com/Rduanchen/ntut-exam-system-backend.git" "bac
 clone_or_update "https://github.com/Rduanchen/ntut-exam-system-ta-frontend.git" "frontend"
 clone_or_update "https://github.com/engineer-man/piston.git" "piston"
 
+
+# create an RSA key pair for SSH authentication under backend/keys
+
+mkdir -p backend/keys
+if [ ! -f "backend/keys/private.pem" ] || [ ! -f "backend/keys/public.pem" ]; then
+  echo "Generating RSA key pair for SSH authentication..."
+  ssh-keygen -t rsa -b 2048 -m PEM -f backend/keys/private.pem -N ""
+  openssl rsa -in backend/keys/private.pem -pubout -outform PEM -out backend/keys/public.pem
+else
+  echo "RSA key pair already exists. Skipping generation."
+fi
+
+# Create a .env file for the backend and put 256 bit AES key in it
+if [ ! -f "backend/.env" ]; then
+  echo "Creating .env file for the backend..."
+  AES_KEY=$(openssl rand -hex 32)
+  cat > backend/.env <<EOL
+# AES key for encrypting sensitive data (256 bits)
+AES_KEY=$AES_KEY
+EOL
+else
+  echo ".env file already exists for the backend. Skipping creation."
+fi
+
 echo "Done."
