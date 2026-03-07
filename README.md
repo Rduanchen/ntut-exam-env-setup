@@ -24,13 +24,7 @@ Table of Contents
 ## Steps to run
 
 0. For windows user:
-
-   set the execution policy to allow running scripts.
-   Open PowerShell as Administrator and run:
-
-   ```powershell
-   Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-   ```
+   please use git bash to run the following commands, and make sure you have set up the environment variable for docker and docker compose.
 
 1. Clone the repository:
 
@@ -47,13 +41,8 @@ Table of Contents
    sh ./install.sh
    ```
 
-   windows user can run
-
-   ```powershell
-   .\install.ps1
-   ```
-
-3. Start the services using Docker Compose:
+3. Start the services using Docker Compose:  
+   **Note** : if you need config piston server, please open /ntut-exam-env-setup/piston/docker-compose.yml and paste your own environment variables in the environment section of piston service before run the following command.
 
    linux user can run
 
@@ -70,26 +59,14 @@ Table of Contents
 4. install python in piston
 
    ```bash
-   sh ./install-piston.sh
-   ```
-
-   windows user can run
-
-   ```powershell
-   .\install-piston.ps1
+   sh ./piston.sh
    ```
 
 5. Start the backend server：
    linux and mac user can run
 
    ```bash
-   sh ./start-backend.sh
-   ```
-
-   windows user can run
-
-   ```powershell
-   .\start-backend.ps1
+   sh ./backend.sh
    ```
 
 ## Reccomand Software to use
@@ -114,7 +91,6 @@ Table of Contents
 ## Steps to run
 
 1. Install PostgreSQL and create a database for the backend.
-
    - Let postgresql listen on 5433 port.
    - Create a database named `mydatabase`.
    - Create a user with superuser privileges and set a password.
@@ -134,25 +110,31 @@ Table of Contents
    ```
 
 3. Change the piston route
-
-   - Open `ntut-exam-env-setup/backend/src/services/CodeJudger.ts` file.
-   - Change the `JUDGER_URL` variable on line 10 to point to your piston server address.
+   - Open `/ntut-exam-env-setup/backend/src/constants/piston.config.ts` file.
+   - Change the url variable on line 10 to point to your piston server address.
 
 4. Start the services server:
-
    - For linux and mac user run
 
    ```bash
-   sh ./start-backend.sh
-   sh ./start-frontend.sh
+   sh ./backend.sh
+   sh ./frontend.sh
    ```
 
-   - For windows user run
+# Config Piston Judge Server
 
-   ```powershell
-   .\start-backend.ps1
-   .\start-frontend.ps1
-   ```
+you can open /ntut-exam-env-setup/piston/docker-compose.yml file and paste the following variables in the environment section of piston service, then restart the docker container.
+
+```yaml
+environment:
+  - PISTON_RUN_TIMEOUT=30000
+  - PISTON_RUN_CPU_TIME=30000
+  - PISTON_COMPILE_TIMEOUT=10000
+  - PISTON_COMPILE_CPU_TIME=10000
+  - PISTON_OUTPUT_MAX_SIZE=10240
+  - PISTON_RUN_MEMORY_LIMIT=-1
+  - PISTON_COMPILE_MEMORY_LIMIT=-1
+```
 
 ## Reccomand Software to use
 
@@ -165,7 +147,6 @@ Table of Contents
 If you have a Computer Lab Management System in your classroom, you can use the following scripts to remotely start the exam environment on student computers.
 
 1. Install the application on student computers:
-
    - put the exe file in student desktop.
    - run the following command:
      note: replace `ntut-code-tester-1.6.5-setup.exe` with the actual filename if it's different.
@@ -175,7 +156,6 @@ If you have a Computer Lab Management System in your classroom, you can use the 
    ```
 
 2. Remove the installer from student computers:
-
    - run the following command:
 
    ```bat
@@ -183,7 +163,6 @@ If you have a Computer Lab Management System in your classroom, you can use the 
    ```
 
 3. Setup the `pre-settings.json` file to configure the application before starting it:
-
    - Create a `pre-settings.json` file with the following content, please change the remoteHost url before use:
 
    ```json
@@ -204,7 +183,6 @@ If you have a Computer Lab Management System in your classroom, you can use the 
    ```
 
 4. Start the application on student computers:
-
    - run the following command:
 
    ```bat
@@ -212,7 +190,6 @@ If you have a Computer Lab Management System in your classroom, you can use the 
    ```
 
 5. If you would like to force close the application on student computers:
-
    - run the following command:
 
    ```bat
