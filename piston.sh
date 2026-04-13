@@ -14,5 +14,6 @@ cd -
 
 # 3. 執行 ppman 安裝 python
 node cli/index.js ppman install python
+node cli/index.js ppman install gcc
 
 echo "Piston setup done."
