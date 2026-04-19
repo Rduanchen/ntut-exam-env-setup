@@ -19,6 +19,7 @@ clone_or_update() {
 clone_or_update "https://github.com/Rduanchen/ntut-exam-system-backend.git" "backend"
 clone_or_update "https://github.com/Rduanchen/ntut-exam-system-ta-frontend.git" "frontend"
 clone_or_update "https://github.com/engineer-man/piston.git" "piston"
+clone_or_update "https://github.com/VerechoTJI/special-rule-engine.git" "special-rule-engine"
 
 
 # create an RSA key pair for SSH authentication under backend/keys
@@ -46,6 +47,15 @@ fi
 
 if [ ! -d "backend/src/upload/" ]; then
   mkdir -p backend/src/upload/
+fi
+
+cd ./special-rule-engine
+if [ ! -d "node_modules" ]; then
+  echo "Installing dependencies for special-rule-engine..."
+  npm install
+  npm run build
+else
+  echo "Dependencies for special-rule-engine already installed. Skipping."
 fi
 
 echo "Done."
