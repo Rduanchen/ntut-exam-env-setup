@@ -1,0 +1,10 @@
+{
+  "testTitle": "北科大計算機程式設計期中考",
+  "description": "the test will be start at 18:00 and end at 20:00",
+  "remoteHost": "http://localhost:3001",
+  "testTime": {
+    "startTime": "2023-11-13T10:30:00Z",
+    "endTime": "2023-11-13T12:30:00Z",
+    "forceQuit": true
+  }
+}
