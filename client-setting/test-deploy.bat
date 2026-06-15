@@ -8,12 +8,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0test.ps1"
 
 echo.
 echo ========================================
-echo     Deploying pre-settings.json
+echo     Deploying pre_settings.json
 echo ========================================
 if not exist "%APPDATA%\Local\Programs\ntut-code-tester\resources" (
     mkdir "%APPDATA%\Local\Programs\ntut-code-tester\resources"
 )
-copy /Y "%~dp0pre-settings.json" "%APPDATA%\Local\Programs\ntut-code-tester\resources\pre-settings.json"
+copy /Y "%~dp0pre_settings.json" "%APPDATA%\Local\Programs\ntut-code-tester\resources\pre_settings.json"
 
 echo.
 echo ========================================
