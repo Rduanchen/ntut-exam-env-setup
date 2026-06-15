@@ -67,8 +67,8 @@
      del "%USERPROFILE%\Desktop\ntut-code-tester-1.6.5-setup.exe" && exit
      ```
 
-3. **設定 `pre-settings.json` (提前組態設定)**：
-   - 建立一個 `pre-settings.json` 檔案，內容如下 (請務必將 `remoteHost` 改為您伺服器的 IP)：
+3. **設定 `pre_settings.json` (提前組態設定)**：
+   - 建立一個 `pre_settings.json` 檔案，內容如下 (請務必將 `remoteHost` 改為您伺服器的 IP)：
      ```json
      {
        "testTitle": "北科大計算機程式設計期中考",
