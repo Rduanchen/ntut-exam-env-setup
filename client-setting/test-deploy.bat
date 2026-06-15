@@ -32,8 +32,8 @@ echo ========================================
 echo     Starting ntut-code-tester
 echo ========================================
 REM Assuming the installed executable path is as follows
-if exist "%APPDATA%\Local\Programs\ntut-code-tester\ntut-code-tester.exe" (
-    start "" "%APPDATA%\Local\Programs\ntut-code-tester\ntut-code-tester.exe"
+if exist "%APPDATA%\..\Local\Programs\ntut-code-tester\NTUTOnMachineTest.exe" (
+    start "" "%APPDATA%\..\Local\Programs\ntut-code-tester\NTUTOnMachineTest.exe"
 ) else (
     echo [Error] Cannot find the installed ntut-code-tester.exe
 )
