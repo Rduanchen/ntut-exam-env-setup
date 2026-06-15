@@ -1,197 +1,96 @@
-# How to install and run NTUT Exam Environment
+# 北科大程式設計考試環境 (NTUT Exam Environment)
 
-Table of Contents
+本專案為北科大程式設計考試系統的環境部署腳本。提供互動式的自動化腳本，能協助您快速完成專案下載、依賴安裝、系統部署及 Piston 程式碼執行環境設定。
 
-- [Setup via Docker Compose](#setup-via-docker-compose)
-  - [Prerequisites](#prerequisites)
-  - [Steps to run](#steps-to-run)
-  - [Reccomand Software to use](#reccomand-software-to-use)
-- [Setup via Manual Installation](#setup-via-manual-installation)
-  - [Prerequisites](#prerequisites-1)
-  - [Steps to run](#steps-to-run-1)
-  - [Reccomand Software to use](#reccomand-software-to-use-1)
-- [Remote Control Script:](#remote-control-script)
+## 系統需求 (Prerequisites)
 
-# Setup via Docker Compose
+- [Node.js](https://nodejs.org/) (若主系統不使用 Docker 部署則為必備)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (部署 Piston 評測機必備)
+- **Git Bash** (Windows 使用者強烈建議，且需以**系統管理員身分**執行)
+- 推薦使用工具：VSCode、Postman、DBeaver
 
-## Prerequisites
+---
 
-- Docker
-- Docker Compose
-- Git
-- Node.js
+## 快速自動化部署 (Quick Setup)
 
-## Steps to run
+我們提供了一個全新的 `setup.sh` 互動式腳本，整合了所有的環境安裝流程。
 
-0. For windows user:
-   please use git bash to run the following commands, and make sure you have set up the environment variable for docker and docker compose.
+### 部署步驟
 
-1. Clone the repository:
-
+1. **取得專案**：
+   請在終端機 (Windows 用戶請將 Git Bash **以系統管理員身分執行**) 輸入以下指令：
    ```bash
    git clone https://github.com/Rduanchen/ntut-exam-env-setup
    cd ntut-exam-env-setup
    ```
 
-2. Install dependencies:
-
-   linux and mac user can run
-
+2. **執行安裝腳本**：
    ```bash
-   sh ./install.sh
+   bash setup.sh
    ```
 
-3. Start the services using Docker Compose:  
-   **Note** : if you need config piston server, please open /ntut-exam-env-setup/piston/docker-compose.yml and paste your own environment variables in the environment section of piston service before run the following command.
+3. **依據互動提示完成設定**：
+   - **Port 設定**：自訂後端 API 與前端網站的 Port（預設為 3000 及 5173）。
+   - **主系統部署方式**：選擇是否使用 Docker 或是在本地 Node 環境下背景啟動 (支援自動安裝 pm2)。
+   - **Windows 防火牆**：腳本會自動利用 `netsh` 開放指定 Port 給區域網路連線。
+   - **Piston 部署**：自動 Clone 專案、注入資源限制變數 (`PISTON_RUN_TIMEOUT` 等)，並使用 Docker 啟動。
+   - **語言環境安裝**：系統啟動後，腳本會在最後詢問您是否要透過 `ppman` 自動安裝 GCC (C/C++) 或 Python 的編譯環境（由於安裝時間較長，已移至最後階段進行）。
 
-   linux user can run
+---
 
-   ```
-   docker compose up -d
-   ```
+## 服務管理 (使用 PM2)
 
-   windows and mac user can run
+若您在部署過程中選擇使用 `pm2` 來於背景運行後端及前端服務，可使用以下常用指令管理：
 
-   ```bash
-   docker-compose up -d
-   ```
+- **查看運行中服務**：`pm2 list`
+- **查看即時日誌**：`pm2 logs`
+- **重啟指定服務**：`pm2 restart ntut-backend` 或 `pm2 restart ntut-frontend`
+- **停止所有服務**：`pm2 stop all`
+- **刪除所有服務**：`pm2 delete all`
 
-4. install python in piston
+---
 
-   ```bash
-   sh ./piston.sh
-   ```
+## 遠端控制腳本 (Remote Control Script)
 
-5. Start the backend server：
-   linux and mac user can run
+如果您在教室內有電腦教室管理系統 (如廣播軟體)，可以利用以下腳本來遠端控制學生電腦上的考試環境。
 
-   ```bash
-   sh ./backend.sh
-   ```
+1. **在學生電腦上安裝應用程式**：
+   - 將 `.exe` 安裝檔放到學生電腦的桌面上。
+   - 執行以下指令 (請依據實際檔名修改 `ntut-code-tester-1.6.5-setup.exe`)：
+     ```bat
+     "%USERPROFILE%\Desktop\ntut-code-tester-1.6.5-setup.exe" && exit
+     ```
 
-## Reccomand Software to use
+2. **移除安裝檔**：
+   - 執行以下指令刪除桌面上的安裝檔：
+     ```bat
+     del "%USERPROFILE%\Desktop\ntut-code-tester-1.6.5-setup.exe" && exit
+     ```
 
-- VSCode
-- Postman
-- DBeaver
+3. **設定 `pre-settings.json` (提前組態設定)**：
+   - 建立一個 `pre-settings.json` 檔案，內容如下 (請務必將 `remoteHost` 改為您伺服器的 IP)：
+     ```json
+     {
+       "testTitle": "北科大計算機程式設計期中考",
+       "description": "測驗時間為 18:00 至 20:00",
+       "publicKey": "key-here",
+       "remoteHost": "http://140.124.184.90:3000"
+     }
+     ```
+   - 將此檔案派送到學生電腦的桌面。
+   - 利用以下指令將檔案移動到應用程式的資源目錄中：
+     ```bat
+     move /Y "%USERPROFILE%\Desktop\pre-settings.json" "%APPDATA%\Local\Programs\ntut-code-tester\resources\pre-settings.json" && exit
+     ```
 
-# Setup via Manual Installation
+4. **啟動學生端應用程式**：
+   - 執行以下指令：
+     ```bat
+     start "" "%LOCALAPPDATA%\Programs\ntut-code-tester\NTUTOnMachineTest" && exit
+     ```
 
-> **Before you start**
-> Piston server must be running at docker container. If your server cannot run piston service, you have to setup piston server on another server and change some scripts in backend to point to that server.
-
-## Prerequisites
-
-- Node.js
-- PostgreSQL 16
-- VScode
-- Git
-- A piston server running
-
-## Steps to run
-
-1. Install PostgreSQL and create a database for the backend.
-   - Let postgresql listen on 5433 port.
-   - Create a database named `mydatabase`.
-   - Create a user with superuser privileges and set a password.
-     - username: `myuser`
-     - password: `mypassword`
-
-2. Clone the repository:
-
-   ```bash
-   sh install.sh
-   ```
-
-   or for windows user
-
-   ```powershell
-   .\install.ps1
-   ```
-
-3. Change the piston route
-   - Open `/ntut-exam-env-setup/backend/src/constants/piston.config.ts` file.
-   - Change the url variable on line 10 to point to your piston server address.
-
-4. Start the services server:
-   - For linux and mac user run
-
-   ```bash
-   sh ./backend.sh
-   sh ./frontend.sh
-   ```
-
-# Config Piston Judge Server
-
-you can open /ntut-exam-env-setup/piston/docker-compose.yml file and paste the following variables in the environment section of piston service, then restart the docker container.
-
-```yaml
-environment:
-  - PISTON_RUN_TIMEOUT=30000
-  - PISTON_RUN_CPU_TIME=30000
-  - PISTON_COMPILE_TIMEOUT=10000
-  - PISTON_COMPILE_CPU_TIME=10000
-  - PISTON_OUTPUT_MAX_SIZE=10240
-  - PISTON_RUN_MEMORY_LIMIT=-1
-  - PISTON_COMPILE_MEMORY_LIMIT=-1
-```
-
-## Reccomand Software to use
-
-- VSCode
-- Postman
-- DBeaver
-
-# Remote Control Script:
-
-If you have a Computer Lab Management System in your classroom, you can use the following scripts to remotely start the exam environment on student computers.
-
-1. Install the application on student computers:
-   - put the exe file in student desktop.
-   - run the following command:
-     note: replace `ntut-code-tester-1.6.5-setup.exe` with the actual filename if it's different.
-
-   ```bat
-      "%USERPROFILE%\Desktop\ntut-code-tester-1.6.5-setup.exe" && exit
-   ```
-
-2. Remove the installer from student computers:
-   - run the following command:
-
-   ```bat
-      del "%USERPROFILE%\Desktop\ntut-code-tester-1.6.5-setup.exe" && exit
-   ```
-
-3. Setup the `pre-settings.json` file to configure the application before starting it:
-   - Create a `pre-settings.json` file with the following content, please change the remoteHost url before use:
-
-   ```json
-   {
-     "testTitle": "北科大計算機程式設計期中考",
-     "description": "the test will be start at 18:00 and end at 20:00",
-     "publicKey": "key-here",
-     "remoteHost": "http://140.124.184.90:3001"
-   }
-   ```
-
-   - Upload the `pre-settings.json` file to student computers' desktop.
-
-   - Put `pre-settings.json` file in to application's working directory.
-
-   ```bat
-      move /Y "%USERPROFILE%\Desktop\pre-settings.json" "%APPDATA%\Local\Programs\ntut-code-tester\resources\pre-settings.json" && exit
-   ```
-
-4. Start the application on student computers:
-   - run the following command:
-
-   ```bat
-      start "" "%LOCALAPPDATA%\Programs\ntut-code-tester\NTUTOnMachineTest" && exit
-   ```
-
-5. If you would like to force close the application on student computers:
-   - run the following command:
-
-   ```bat
-      taskkill /IM NTUTOnMachineTest.exe /F && exit
-   ```
+5. **強制關閉學生端應用程式 (若有需要)**：
+   - 執行以下指令：
+     ```bat
+     taskkill /IM NTUTOnMachineTest.exe /F && exit
+     ```

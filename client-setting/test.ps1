@@ -55,6 +55,8 @@ $CUSTOM_COMPILER_PATH = ""
 $COMPILER_FOUND = $false
 $COMPILER_PATH = ""
 $COMPILER_VERSION = ""
+$COMPILER_IN_PATH = $false
+$GCC_ENV_STATUS = ""
 $COMPILE_SUCCESS = $false
 $OVERALL_SUCCESS = $false
 
@@ -87,6 +89,7 @@ if (-not $COMPILER_FOUND) {
         if ($target) {
             $COMPILER_PATH = $target.Source
             $COMPILER_FOUND = $true
+            $COMPILER_IN_PATH = $true
             Write-Host "  [OK] Found: $COMPILER_PATH"
             break
         }
@@ -94,6 +97,8 @@ if (-not $COMPILER_FOUND) {
     if (-not $COMPILER_FOUND) {
         Write-Host "  [FAIL] No compiler in PATH" -ForegroundColor Yellow
     }
+} else {
+    $COMPILER_IN_PATH = $true
 }
 
 Write-Host "`n[Step 2] Environment variable setup"
@@ -121,7 +126,33 @@ if (-not $COMPILER_FOUND) {
                 $COMPILER_PATH = $fullPath
                 $COMPILER_FOUND = $true
                 $env:PATH = "$dir;" + $env:PATH
-                Write-Host "  [OK] Found $exe at $dir, added to PATH"
+                Write-Host "  [OK] Found $exe at $dir, added to session PATH"
+                
+                # 嘗試永久寫入使用者環境變數
+                $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+                if (-not ($userPath -match [regex]::Escape($dir))) {
+                    try {
+                        $newPath = "$dir;" + $userPath
+                        [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+                        Write-Host "  [OK] Permanently added $dir to User PATH"
+                        
+                        # 測試 gcc/編譯器 指令是否有反應
+                        $testOut = (& "cmd" "/c" "$exe --version" 2>&1) | Out-String
+                        if ($LASTEXITCODE -eq 0 -or $testOut -match "version") {
+                            $GCC_ENV_STATUS = "SUCCESS"
+                            Write-Host "  [OK] '$exe' command tested successfully"
+                        } else {
+                            $GCC_ENV_STATUS = "FAILED_TEST"
+                            Write-Host "  [FAIL] '$exe' command test failed after setting PATH" -ForegroundColor Red
+                        }
+                    } catch {
+                        $GCC_ENV_STATUS = "FAILED_SET"
+                        Write-Host "  [FAIL] Could not modify User PATH permanently" -ForegroundColor Red
+                    }
+                } else {
+                    $GCC_ENV_STATUS = "SUCCESS"
+                    Write-Host "  [OK] Already in User PATH, but shell restart might be required."
+                }
                 break
             }
         }
@@ -334,6 +365,14 @@ Write-Host "  Compiler Found : $sf"
 if ($COMPILER_FOUND) {
     Write-Host "  Location       : $COMPILER_PATH"
     Write-Host "  Version        : $COMPILER_VERSION"
+    
+    if (-not $COMPILER_IN_PATH) {
+        if ($GCC_ENV_STATUS -eq "SUCCESS") {
+            Write-Host "  Env Setup      : SUCCESS (Compiler path added to User PATH)" -ForegroundColor Green
+        } else {
+            Write-Host "  Env Setup      : FAILED - gcc 沒有成功設定，請手動加入環境變數" -ForegroundColor Red
+        }
+    }
 }
 Write-Host -NoNewline "  Compile Test   : "; Write-Host $sc -ForegroundColor $compileColor
 Write-Host -NoNewline "  Run Verify     : "; Write-Host $sr -ForegroundColor $runColor
