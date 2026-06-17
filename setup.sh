@@ -1,5 +1,17 @@
 #!/bin/bash
 
+net session > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "======================================================="
+    echo "❌ 錯誤：權限不足！請使用「系統管理員身分」執行此腳本。"
+    echo "-------------------------------------------------------"
+    echo "原因：本腳本需要管理員權限以自動設定 Windows 防火牆規則。"
+    echo "請關閉此視窗，並對 Git Bash 圖示點擊右鍵，選擇「以系統管理員身分執行」。"
+    echo "======================================================="
+    read -p "按任意鍵結束..."
+    exit 1
+fi
+
 # 確保腳本在 ntut-exam-env-setup 目錄下執行
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -183,7 +195,7 @@ services:
       - ADMIN_SECRET=$ADMIN_SECRET
       - DB_STORAGE=/app/data/database.sqlite
     volumes:
-      - ntut-data:/app/data
+      - ./data:/app/data
     restart: unless-stopped
 
   frontend:
@@ -199,16 +211,17 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
-
-volumes:
-  ntut-data:
 EOF
     cd host
     docker compose up -d --build
     cd ..
     echo "✅ Docker 系統啟動完成！"
 else
-    echo "=> 系統準備完成！請自行啟動服務 "
+    echo "=> 系統準備完成！"
+    echo "=> 請開啟兩個獨立的 Git Bash 終端機，並先執行 'cd host'，然後分別執行以下指令來啟動伺服器："
+    echo "   請使用以下的指令來啟動後端 API 服務："
+    echo "   cd host"
+    echo "   pnpm production"
 fi
 
 echo ""

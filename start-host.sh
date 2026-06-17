@@ -9,3 +9,4 @@ cd "$SCRIPT_DIR/host"
 pnpm install
 pnpm production
 
+echo "host setup done."
