@@ -26,7 +26,6 @@ if not exist "%APPDATA%\..\Local\Programs\ntut-code-tester\resources" (
 )
 copy /Y "%~dp0pre_settings.json" "%APPDATA%\..\Local\Programs\ntut-code-tester\resources\pre_settings.json"
 
-
 echo.
 echo ========================================
 echo      Starting ntut-code-tester (Silent)
@@ -37,10 +36,7 @@ set "TARGET_DIR=%APPDATA%\..\Local\Programs\ntut-code-tester\"
 if exist "%TARGET_EXE%" (
     REM 透過 VBScript 腳本實現 100% 隱藏視窗且獨立 Session 啟動
     mshta vbscript:CreateObject("WScript.Shell").Run("""%TARGET_EXE%""",0,False)(window.close)
+    exit
 ) else (
     echo [Error] Cannot find the installed ntut-code-tester.exe
 )
-
-echo.
-echo Deployment finished.
-pause
