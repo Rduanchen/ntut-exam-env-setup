@@ -208,30 +208,7 @@ EOF
     cd ..
     echo "✅ Docker 系統啟動完成！"
 else
-    echo "=> 系統準備完成！建議使用 pm2 來在背景啟動服務。"
-    read -p "是否要自動安裝並使用 pm2 在背景啟動系統? (y/n): " USE_PM2
-    USE_PM2=${USE_PM2:-y}
-
-    cd host
-
-    if [[ "$USE_PM2" =~ ^[Yy]$ ]]; then
-        if ! command -v pm2 >/dev/null 2>&1; then
-            echo "=> 正在安裝 pm2..."
-            npm install -g pm2
-        fi
-        echo "=> 正在啟動後端與前端..."
-        # 確保 vite 的 dev 伺服器會綁定 0.0.0.0 以便區域網路連線
-        pm2 start pnpm --name "ntut-backend" -- run dev:backend
-        pm2 start pnpm --name "ntut-frontend" -- run dev:frontend -- --host 0.0.0.0 --port $FRONTEND_PORT
-        pm2 save
-        echo "✅ 系統已於背景執行！您可以使用 'pm2 list' 或是 'pm2 logs' 來管理。"
-    else
-        echo "=> 請開啟兩個獨立的 Git Bash 終端機，並先執行 'cd host'，然後分別執行以下指令來啟動伺服器："
-        echo "   [終端機 1] pnpm run dev:backend"
-        echo "   [終端機 2] pnpm run dev:frontend -- --host 0.0.0.0 --port $FRONTEND_PORT"
-    fi
-
-    cd ..
+    echo "=> 系統準備完成！請自行啟動服務 "
 fi
 
 echo ""
