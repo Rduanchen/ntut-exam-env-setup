@@ -2,9 +2,9 @@
 chcp 65001 >nul
 
 echo ========================================
-echo     Running Test (test.ps1)
+echo     Running Test (test-v2.ps1)
 echo ========================================
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0test.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0test-v2.ps1"
 
 echo.
 echo ========================================
