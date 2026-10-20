@@ -16,8 +16,7 @@ IS_WINDOWS=false
 IS_ADMIN=false
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
     IS_WINDOWS=true
-    net session > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
+    if net session > /dev/null 2>&1; then
         IS_ADMIN=true
     fi
 fi
@@ -91,8 +90,11 @@ else
 fi
 DETECTED_IP=${DETECTED_IP:-127.0.0.1}
 
-read -p "請輸入後端 API Port (預設: 3000): " APP_PORT
-APP_PORT=${APP_PORT:-3000}
+read -p "請輸入管理 API Port (預設: 3000): " ADMIN_PORT
+ADMIN_PORT=${ADMIN_PORT:-3000}
+
+read -p "請輸入學生 API Port (預設: 3001): " USER_PORT
+USER_PORT=${USER_PORT:-3001}
 
 read -p "請輸入前端網站 Port (預設: 5173): " FRONTEND_PORT
 FRONTEND_PORT=${FRONTEND_PORT:-5173}
@@ -100,7 +102,20 @@ FRONTEND_PORT=${FRONTEND_PORT:-5173}
 read -p "請輸入 Piston 執行服務 Port (預設: 2000): " PISTON_PORT
 PISTON_PORT=${PISTON_PORT:-2000}
 
-echo "💡 提示：伺服器 IP 會被寫入前端連線與學生端 pre_settings.json (若供教室區網使用，請使用真實 IP)"
+SEEN_PORTS=""
+for PORT_VALUE in "$ADMIN_PORT" "$USER_PORT" "$FRONTEND_PORT" "$PISTON_PORT"; do
+    if [[ ! "$PORT_VALUE" =~ ^[0-9]+$ ]] || [ "$PORT_VALUE" -lt 1 ] || [ "$PORT_VALUE" -gt 65535 ]; then
+        echo "❌ 錯誤：Port 必須是 1–65535 的整數。"
+        exit 1
+    fi
+    if [[ " $SEEN_PORTS " == *" $PORT_VALUE "* ]]; then
+        echo "❌ 錯誤：管理、學生、前端與 Piston Port 必須各不相同。"
+        exit 1
+    fi
+    SEEN_PORTS="$SEEN_PORTS $PORT_VALUE"
+done
+
+echo "💡 提示：伺服器 IP 只會寫入學生端 pre_settings.json；管理端預設僅供本機使用。"
 read -p "請輸入伺服器對外/區網 IP (預設: $DETECTED_IP): " SERVER_IP
 SERVER_IP=${SERVER_IP:-$DETECTED_IP}
 
@@ -111,7 +126,11 @@ if [ -z "$ADMIN_TOKEN" ]; then
     else
         ADMIN_TOKEN=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 32 || echo "ntut_exam_token_$(date +%s)")
     fi
-    echo "=> 已自動產生 Admin Token: $ADMIN_TOKEN"
+    echo "=> 已自動產生 Admin Token（儲存在環境檔中）。"
+fi
+if [[ ! "$ADMIN_TOKEN" =~ ^[A-Za-z0-9_-]{16,}$ ]] || [[ "$ADMIN_TOKEN" == "admin-secret" ]]; then
+    echo "❌ 錯誤：Admin Token 至少需 16 字元，且只能包含英數字、底線或連字號。"
+    exit 1
 fi
 echo ""
 
@@ -124,7 +143,7 @@ echo "2) 本機 Node.js 部署 (在本地 Node 環境執行主系統，Piston �
 read -p "請選擇部署模式 (1/2) [預設: 1]: " DEPLOY_MODE
 DEPLOY_MODE=${DEPLOY_MODE:-1}
 
-FRONTEND_BACKEND_URL="http://${SERVER_IP}:${APP_PORT}"
+FRONTEND_BACKEND_URL="http://127.0.0.1:${ADMIN_PORT}"
 
 if [ "$DEPLOY_MODE" = "1" ]; then
     echo ""
@@ -137,16 +156,21 @@ if [ "$DEPLOY_MODE" = "1" ]; then
     # 寫入 host/.env 供 docker compose 讀取
     echo "=> 正在寫入 host/.env 設定檔..."
     cat > "$HOST_DIR/.env" <<EOF
-APP_PORT=$APP_PORT
+ADMIN_PORT=$ADMIN_PORT
+USER_PORT=$USER_PORT
 FRONTEND_PORT=$FRONTEND_PORT
 PISTON_PORT=$PISTON_PORT
+PISTON_URL=http://host.docker.internal:$PISTON_PORT
 ADMIN_TOKEN=$ADMIN_TOKEN
-ADMIN_SECRET=$ADMIN_TOKEN
+ADMIN_BIND_HOST=127.0.0.1
+FRONTEND_BIND_HOST=127.0.0.1
 VITE_BACKEND_URL=$FRONTEND_BACKEND_URL
 EOF
 
-    echo "=> 正在使用 host 原生 Docker Compose 建置並啟動服務..."
-    docker compose -f "$HOST_DIR/docker-compose.yml" up -d --build
+    echo "=> 啟動部署工具的 Piston 容器..."
+    PISTON_PORT="$PISTON_PORT" docker compose -f "$SCRIPT_DIR/docker-compose.yaml" up -d
+    echo "=> 正在使用 host Docker Compose 建置並啟動前後端..."
+    docker compose --project-directory "$HOST_DIR" -f "$HOST_DIR/docker-compose.yml" up -d --build --no-deps backend frontend
     echo "✅ Docker 堆疊啟動指令已送出！"
 
 else
@@ -180,15 +204,19 @@ else
     # 寫入後端與前端環境變數
     echo "=> 寫入後端設定 (backend/.env)..."
     cat > "$HOST_DIR/backend/.env" <<EOF
-PORT=$APP_PORT
+ADMIN_PORT=$ADMIN_PORT
+USER_PORT=$USER_PORT
+FRONTEND_PORT=$FRONTEND_PORT
+PISTON_PORT=$PISTON_PORT
+ADMIN_LISTEN_HOST=127.0.0.1
 PISTON_URL=http://localhost:$PISTON_PORT
 ADMIN_TOKEN=$ADMIN_TOKEN
-ADMIN_SECRET=$ADMIN_TOKEN
 EOF
 
     echo "=> 寫入前端設定 (frontend/.env)..."
     cat > "$HOST_DIR/frontend/.env" <<EOF
 VITE_BACKEND_URL=$FRONTEND_BACKEND_URL
+VITE_ADMIN_TOKEN=$ADMIN_TOKEN
 EOF
 
     # 啟動 Piston 容器
@@ -221,12 +249,12 @@ EOF
         cd "$HOST_DIR"
         pm2 delete ntut-backend ntut-frontend 2>/dev/null || true
         pm2 start pnpm --name "ntut-backend" -- --filter backend start
-        pm2 start npx --name "ntut-frontend" -- --yes serve -s frontend/dist -l "$FRONTEND_PORT"
+        pm2 start pnpm --name "ntut-frontend" -- --filter frontend exec vite preview --host 127.0.0.1 --port "$FRONTEND_PORT" --strictPort
         pm2 save || true
         cd "$SCRIPT_DIR"
         echo "✅ 系統已於背景透過 PM2 啟動！可用 'pm2 list' 或 'pm2 logs' 檢視狀態。"
     else
-        echo "=> 您可以隨時執行 ./start-host.sh 或在 $HOST_DIR 下執行 'pnpm start' 啟動服務。"
+        echo "=> 您可以隨時執行 ./start-host.sh 啟動服務。"
     fi
 fi
 echo ""
@@ -236,13 +264,11 @@ echo ""
 # ------------------------------------------------------------------
 if [ "$IS_WINDOWS" = true ] && [ "$IS_ADMIN" = true ]; then
     echo "--- [階段 4] Windows 防火牆設定 ---"
-    read -p "是否自動新增 Windows 防火牆允許規則 (TCP $APP_PORT, $FRONTEND_PORT)? (y/n) [預設: y]: " ALLOW_FIREWALL
+    read -p "是否自動開放學生 API Port $USER_PORT？管理 Port 不會開放給學生 (y/n) [預設: y]: " ALLOW_FIREWALL
     ALLOW_FIREWALL=${ALLOW_FIREWALL:-y}
     if [[ "$ALLOW_FIREWALL" =~ ^[Yy]$ ]]; then
-        netsh advfirewall firewall delete rule name="NTUT Backend API ($APP_PORT)" >/dev/null 2>&1 || true
-        netsh advfirewall firewall delete rule name="NTUT Frontend ($FRONTEND_PORT)" >/dev/null 2>&1 || true
-        netsh advfirewall firewall add rule name="NTUT Backend API ($APP_PORT)" dir=in action=allow protocol=TCP localport="$APP_PORT" >/dev/null
-        netsh advfirewall firewall add rule name="NTUT Frontend ($FRONTEND_PORT)" dir=in action=allow protocol=TCP localport="$FRONTEND_PORT" >/dev/null
+        netsh advfirewall firewall delete rule name="NTUT Student API ($USER_PORT)" >/dev/null 2>&1 || true
+        netsh advfirewall firewall add rule name="NTUT Student API ($USER_PORT)" dir=in action=allow protocol=TCP localport="$USER_PORT" >/dev/null
         echo "✅ Windows 防火牆設定完成！"
     fi
     echo ""
@@ -255,7 +281,7 @@ echo "--- [階段 5] Piston 程式碼評測語言環境安裝 ---"
 echo "正在等待 Piston 服務就緒..."
 PISTON_URL="http://localhost:$PISTON_PORT"
 READY=false
-for i in {1..30}; do
+for i in {1..60}; do
     if curl -s -f "$PISTON_URL/api/v2/runtimes" >/dev/null 2>&1; then
         READY=true
         break
@@ -274,22 +300,44 @@ if [ "$READY" = "true" ]; then
 
     case "$LANG_CHOICE" in
         1)
-            bash "$SCRIPT_DIR/piston.sh" python
+            PISTON_PORT="$PISTON_PORT" bash "$SCRIPT_DIR/piston.sh" --no-start python
             ;;
         2)
-            bash "$SCRIPT_DIR/piston.sh" gcc
+            PISTON_PORT="$PISTON_PORT" bash "$SCRIPT_DIR/piston.sh" --no-start gcc
             ;;
         3)
-            bash "$SCRIPT_DIR/piston.sh" python gcc
+            PISTON_PORT="$PISTON_PORT" bash "$SCRIPT_DIR/piston.sh" --no-start python gcc
             ;;
         *)
             echo "=> 跳過語言套件安裝。"
             ;;
     esac
 else
-    echo "⚠️ 暫時無法連線至 Piston API ($PISTON_URL)，已略過語言套件安裝。稍後可隨時執行 ./piston.sh 補裝。"
+    echo "❌ Piston API 未就緒 ($PISTON_URL)，部署驗證失敗。"
+    exit 1
 fi
 echo ""
+
+if [ "$DEPLOY_MODE" = "1" ] || { [ "$DEPLOY_MODE" = "2" ] && [[ "${USE_PM2:-n}" =~ ^[Yy]$ ]]; }; then
+    echo "=> 確認管理與學生 API 均已就緒..."
+    for API_PORT in "$ADMIN_PORT" "$USER_PORT"; do
+        API_READY=false
+        for i in {1..60}; do
+            if curl -s -f "http://127.0.0.1:$API_PORT/health" >/dev/null 2>&1; then
+                API_READY=true
+                break
+            fi
+            sleep 1
+        done
+        if [ "$API_READY" != "true" ]; then
+            echo "❌ Port $API_PORT 的 API 未通過健康檢查，部署驗證失敗。"
+            exit 1
+        fi
+    done
+    echo "✅ 管理與學生 API 均已就緒。"
+else
+    echo "ℹ️ 未選擇 PM2；主系統已建置但尚未啟動，請執行 ./start-host.sh。"
+fi
 
 # ------------------------------------------------------------------
 # 學生端 (Desktop) 配置產生與同步
@@ -302,11 +350,11 @@ cat > "$PRE_SETTINGS_FILE" <<EOF
 {
   "testTitle": "北科大程式設計考試",
   "description": "測驗時間請遵從現場監考人員指示",
-  "remoteHost": "http://${SERVER_IP}:${APP_PORT}"
+  "remoteHost": "http://${SERVER_IP}:${USER_PORT}"
 }
 EOF
 echo "✅ 已同步產生學生端設定檔: $PRE_SETTINGS_FILE"
-echo "   remoteHost => http://${SERVER_IP}:${APP_PORT}"
+echo "   remoteHost => http://${SERVER_IP}:${USER_PORT}"
 
 # 若存在 desktop 專案，檢查是否已建置
 if [ -n "$DESKTOP_DIR" ]; then
@@ -330,10 +378,11 @@ echo ""
 # ------------------------------------------------------------------
 echo "======================================================="
 echo " 🎉 NTUT Exam System 部署設定已完成！"
-echo " 🌐 前端管理介面: http://${SERVER_IP}:${FRONTEND_PORT} (本地: http://localhost:${FRONTEND_PORT})"
-echo " 🔌 後端 API 服務: http://${SERVER_IP}:${APP_PORT}"
+echo " 🌐 前端管理介面 (僅本機): http://127.0.0.1:${FRONTEND_PORT}"
+echo " 🔒 管理 API (僅本機): http://127.0.0.1:${ADMIN_PORT}"
+echo " 🔌 學生 API: http://${SERVER_IP}:${USER_PORT}"
 echo " ⚙️ Piston 評測機: http://localhost:${PISTON_PORT}"
-echo " 🔑 Admin Token  : ${ADMIN_TOKEN}"
+echo " 🔑 Admin Token 已寫入主系統環境檔"
 echo "======================================================="
 echo " 📁 學生端部署包位置: client-setting/"
 echo "    包含已設定的 pre_settings.json 與部署腳本 test-deploy-v2.bat"

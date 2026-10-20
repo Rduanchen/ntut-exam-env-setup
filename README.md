@@ -8,7 +8,7 @@
 
 - **Node.js**：**Node.js >= 20.19.0**（若主系統選擇非 Docker 部署為必備；因後端 CommonJS 載入 ESM 套件需支援）。
 - **Docker Desktop**：必備（無論主系統是否使用 Docker，Piston 程式碼沙盒評測機均依賴 Linux 隔離容器運行）。
-- **Git Bash**：Windows 使用者強烈建議，且建議以**系統管理員身分**執行（以利自動配置 Windows 防火牆允許區域網路連線）。
+- **Git Bash**：Windows 使用者強烈建議，且建議以**系統管理員身分**執行（以利只開放學生 API 的 Windows 防火牆規則）。
 - **pnpm**：`pnpm >= 9`（主系統專案採用 pnpm workspace 管理）。
 
 ---
@@ -43,27 +43,29 @@ bash setup.sh
 
 1. **專案定位**：自動偵測同層或子目錄下的 `host` 與 `desktop` 專案，若未下載可自動由 GitHub clone。
 2. **通訊埠與伺服器 IP 設定**：
-   - 後端 API Port（預設 `3000`）
+   - 管理 API Port（預設 `3000`，只供本機管理）
+   - 學生 API Port（預設 `3001`，供學生端連線）
    - 前端網站 Port（預設 `5173`）
    - Piston 評測服務 Port（預設 `2000`）
-   - 伺服器對外 / 區網 IP：腳本會自動偵測本機真實 IP，並將此 IP 注入前端設定與學生端 `pre_settings.json`，確保教室區網內的電腦均能正常連線。
+   - 伺服器對外 / 區網 IP：腳本會自動偵測本機真實 IP，並將此 IP 與學生 API Port 寫入學生端 `pre_settings.json`。
 3. **安全金鑰 (Admin Token)**：
-   - 系統依據新版規格採用 `ADMIN_TOKEN` 驗證（相容舊版 `ADMIN_SECRET`）。可手動輸入或由腳本自動產生 32 字元安全亂數。
+   - 系統採用 `ADMIN_TOKEN` 驗證。可手動輸入至少 16 字元的安全金鑰，或由腳本自動產生。前端建置會包含此值，因此管理前端與管理 API 預設都只綁定本機。
 4. **選擇部署模式**：
    - **[1] Docker 完整部署 (推薦)**：
-     - 前端、後端與 Piston 均封裝於容器中運行。
+     - 前端、後端與 Piston 均封裝於容器中運行；Piston 由本部署工具的 Compose 管理，host Compose 只啟動前後端，避免同名容器衝突。
+     - 寫入 `host/.env`：`ADMIN_PORT`、`USER_PORT`、`ADMIN_TOKEN` 與管理端本機綁定設定。
      - 完整保留 `host/docker-compose.yml` 之生產環境調校（含 tmpfs 任務目錄、沙盒限制與持久化儲存）。
-     - 啟動指令：`docker compose -f host/docker-compose.yml up -d --build`
+     - `setup.sh` 先啟動本專案的 Piston，再使用 host Compose 建置與啟動前後端。
    - **[2] 本機 Node.js 部署**：
      - 自動檢查本機 Node.js 版本（確保 `>= 20.19.0`）。
-     - 自動產生 `host/backend/.env` 與 `host/frontend/.env`。
+     - 自動產生 `host/backend/.env`（雙埠、token）與 `host/frontend/.env`（管理 API URL、同一 token）。
      - 自動啟動 Piston 容器，並透過 `pnpm install` 與 `pnpm build` 建置系統。
      - 支援以 **PM2** 常駐於背景運行，或以手動指令前台執行。
-5. **Windows 防火牆設定**：以管理員身分執行時，會自動透過 `netsh` 開放指定 TCP Port。
+5. **Windows 防火牆設定**：以管理員身分執行時，只會開放學生 API Port；不會自動開放管理 API 或前端。
 6. **Piston 評測機語言套件安裝**：
    - 提供互動選單快速安裝：`Python (3.12.0)` 與 `GCC (C/C++ 10.2.0)`。
 7. **學生端設定自動同步**：
-   - 自動更新 `client-setting/pre_settings.json` 的 `remoteHost` 為伺服器真實 IP 與 Port。
+   - 自動更新 `client-setting/pre_settings.json` 的 `remoteHost` 為伺服器真實 IP 與學生 API Port。
    - 若 `desktop` 已編譯 Windows 安裝檔，自動複製至 `client-setting/ntut-code-tester.exe`。
 
 ---
@@ -173,7 +175,7 @@ bash build-desktop.sh
    {
      "testTitle": "北科大計算機程式設計考試",
      "description": "測驗時間請遵從現場監考人員指示",
-     "remoteHost": "http://192.168.1.100:3000"
+     "remoteHost": "http://192.168.1.100:3001"
    }
    ```
    將此檔案派送至學生桌面後，執行以下指令移動至程式資源目錄：
@@ -196,7 +198,7 @@ bash build-desktop.sh
 ## 考試前自我測試
 
 主系統部署完成後，請於瀏覽器進入管理後台：
-- **網址**：`http://<SERVER_IP>:5173/judge`
+- **網址**：`http://127.0.0.1:5173/judge`（在主機本機開啟；自訂前端 Port 時請替換）
 - 切換至 **Deploy Test** 分頁：
   - 系統將會發送 probe 測試 Piston 的 C、C++、Python 實際編譯與運行狀態。
   - 驗證 CE、RE、TLE、MLE 等判定行為。

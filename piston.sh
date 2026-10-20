@@ -4,6 +4,11 @@ set -euo pipefail
 # 取得這個腳本所在的目錄
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PISTON_PORT="${PISTON_PORT:-2000}"
+SKIP_START=false
+if [ "${1:-}" = "--no-start" ]; then
+    SKIP_START=true
+    shift
+fi
 
 echo "======================================================="
 echo "       Piston 程式碼執行環境啟動與語言套件安裝"
@@ -16,8 +21,10 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 # 2. 啟動 Piston 容器
-echo "=> 啟動 Piston 容器 (Port: $PISTON_PORT)..."
-docker compose -f "$SCRIPT_DIR/docker-compose.yaml" up -d
+if [ "$SKIP_START" = false ]; then
+    echo "=> 啟動 Piston 容器 (Port: $PISTON_PORT)..."
+    docker compose -f "$SCRIPT_DIR/docker-compose.yaml" up -d
+fi
 
 # 3. 等待 Piston API 就緒
 echo -n "=> 等待 Piston 服務就緒..."
@@ -59,7 +66,7 @@ for lang in "${LANGS[@]}"; do
         -d "{\"language\":\"$lang\",\"version\":\"*\"}" 2>&1)
     
     HTTP_CODE=$(echo "$RESP" | tail -n1)
-    BODY=$(echo "$RESP" | head -n -1)
+    BODY=$(printf '%s\n' "$RESP" | sed '$d')
 
     if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
         echo "✅ 完成 ($BODY)"

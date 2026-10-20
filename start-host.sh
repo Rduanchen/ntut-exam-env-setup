@@ -19,10 +19,16 @@ else
 fi
 echo "=> 使用 host 目錄: $HOST_DIR"
 
+# 只讀取連接埠數字，不執行 .env 中的任意內容。
+FRONTEND_PORT=$(sed -n 's/^FRONTEND_PORT=//p' "$HOST_DIR/backend/.env" | tail -n1)
+FRONTEND_PORT=${FRONTEND_PORT:-5173}
+PISTON_PORT=$(sed -n 's/^PISTON_PORT=//p' "$HOST_DIR/backend/.env" | tail -n1)
+PISTON_PORT=${PISTON_PORT:-2000}
+
 # 2. 檢查並啟動 Piston 容器 (若 Docker 可用)
 if command -v docker >/dev/null 2>&1; then
     echo "=> 確保 Piston 評測機容器正常運行..."
-    docker compose -f "$SCRIPT_DIR/docker-compose.yaml" up -d
+    PISTON_PORT="$PISTON_PORT" docker compose -f "$SCRIPT_DIR/docker-compose.yaml" up -d
 else
     echo "⚠️ 警告：找不到 docker 指令。若後端評測機未運行，請確保 Piston 已於某處啟動。"
 fi
@@ -58,5 +64,8 @@ pnpm install
 echo "=> 建置系統..."
 pnpm build
 
-echo "=> 啟動系統 (後端 + 前端)..."
-pnpm start
+echo "=> 啟動後端與本機管理前端..."
+pnpm --filter backend start &
+BACKEND_PID=$!
+trap 'kill "$BACKEND_PID" 2>/dev/null || true' EXIT INT TERM
+pnpm --filter frontend exec vite preview --host 127.0.0.1 --port "$FRONTEND_PORT" --strictPort
