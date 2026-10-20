@@ -1,39 +1,95 @@
 #!/bin/bash
+set -eo pipefail
 
-net session > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    echo "======================================================="
-    echo "❌ 錯誤：權限不足！請使用「系統管理員身分」執行此腳本。"
-    echo "-------------------------------------------------------"
-    echo "原因：本腳本需要管理員權限以自動設定 Windows 防火牆規則。"
-    echo "請關閉此視窗，並對 Git Bash 圖示點擊右鍵，選擇「以系統管理員身分執行」。"
-    echo "======================================================="
-    read -p "按任意鍵結束..."
-    exit 1
-fi
-
-# 確保腳本在 ntut-exam-env-setup 目錄下執行
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "======================================================="
-echo "    NTUT Exam System - 快速部署與環境設定腳本"
-echo "    (專為 Windows + Git Bash 環境設計)"
+echo "       NTUT Exam System - 環境設定與系統部署工具"
 echo "======================================================="
 echo ""
 
 # ------------------------------------------------------------------
-# 檢查必要專案結構
+# 檢查作業系統與管理員權限
 # ------------------------------------------------------------------
-if [ ! -d "host" ]; then
-    echo "=> 找不到 host 專案資料夾，自動幫您 clone 主系統..."
-    git clone https://github.com/Rduanchen/ntut-exam-v2 host
+IS_WINDOWS=false
+IS_ADMIN=false
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
+    IS_WINDOWS=true
+    net session > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        IS_ADMIN=true
+    fi
+fi
+
+if [ "$IS_WINDOWS" = true ] && [ "$IS_ADMIN" = false ]; then
+    echo "⚠️ 提示：未以「系統管理員身分」執行此視窗。"
+    echo "   將無法自動設定 Windows 防火牆規則。若需要開放區網連線，部署後需手動開放 Port。"
+    read -p "是否繼續執行設定？(y/n) [預設: y]: " CONT
+    CONT=${CONT:-y}
+    if [[ ! "$CONT" =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+    echo ""
 fi
 
 # ------------------------------------------------------------------
-# 階段 1. 安裝環境
+# 檢查與定位關聯專案 (host 與 desktop)
 # ------------------------------------------------------------------
-echo "--- [階段 1] 系統環境安裝與設定 ---"
+echo "--- [階段 1] 檢查專案結構 ---"
+
+# 定位 host 專案
+HOST_DIR=""
+if [ -d "$SCRIPT_DIR/host" ]; then
+    HOST_DIR="$SCRIPT_DIR/host"
+elif [ -d "$SCRIPT_DIR/../host" ]; then
+    HOST_DIR="$(cd "$SCRIPT_DIR/../host" && pwd)"
+fi
+
+if [ -z "$HOST_DIR" ]; then
+    echo "=> 找不到 host 主系統專案資料夾。"
+    read -p "是否自動 clone host 專案至此目錄？(y/n) [預設: y]: " CLONE_HOST
+    CLONE_HOST=${CLONE_HOST:-y}
+    if [[ "$CLONE_HOST" =~ ^[Yy]$ ]]; then
+        git clone https://github.com/Rduanchen/ntut-exam-v2.git "$SCRIPT_DIR/host"
+        HOST_DIR="$SCRIPT_DIR/host"
+    else
+        echo "❌ 錯誤：找不到 host 專案，無法繼續部署。"
+        exit 1
+    fi
+fi
+echo "✅ 已定位 host 專案: $HOST_DIR"
+
+# 定位 desktop 專案 (選配)
+DESKTOP_DIR=""
+if [ -d "$SCRIPT_DIR/desktop" ]; then
+    DESKTOP_DIR="$SCRIPT_DIR/desktop"
+elif [ -d "$SCRIPT_DIR/../desktop" ]; then
+    DESKTOP_DIR="$(cd "$SCRIPT_DIR/../desktop" && pwd)"
+fi
+
+if [ -n "$DESKTOP_DIR" ]; then
+    echo "✅ 已定位 desktop 專案: $DESKTOP_DIR"
+else
+    echo "ℹ️ 未偵測到 desktop 專案資料夾 (將使用 client-setting/ 下既有設定)。"
+fi
+echo ""
+
+# ------------------------------------------------------------------
+# 網路與連線組態
+# ------------------------------------------------------------------
+echo "--- [階段 2] 網路與連線組態 ---"
+
+# 嘗試自動偵測本機區域網路 IP
+DETECTED_IP=""
+if [ "$IS_WINDOWS" = true ]; then
+    DETECTED_IP=$(ipconfig | grep -i "IPv4" | awk -F: '{print $2}' | tr -d '\r ' | head -n1 || true)
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    DETECTED_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)
+else
+    DETECTED_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
+fi
+DETECTED_IP=${DETECTED_IP:-127.0.0.1}
 
 read -p "請輸入後端 API Port (預設: 3000): " APP_PORT
 APP_PORT=${APP_PORT:-3000}
@@ -41,19 +97,79 @@ APP_PORT=${APP_PORT:-3000}
 read -p "請輸入前端網站 Port (預設: 5173): " FRONTEND_PORT
 FRONTEND_PORT=${FRONTEND_PORT:-5173}
 
-read -p "請問是否要使用 Docker 來部署主系統 (前端與後端)? (y/n): " USE_DOCKER
-USE_DOCKER=${USE_DOCKER:-n}
+read -p "請輸入 Piston 執行服務 Port (預設: 2000): " PISTON_PORT
+PISTON_PORT=${PISTON_PORT:-2000}
 
-if [[ "$USE_DOCKER" =~ ^[Nn]$ ]]; then
-    echo "=> 選擇不使用 Docker，正在檢查 Node.js 環境..."
-    # 檢查 Node.js 環境
-    if ! command -v node >/dev/null 2>&1; then
-        echo "❌ 錯誤：找不到 Node.js！請先至 https://nodejs.org/ 安裝 Node.js。"
-        exit 1
+echo "💡 提示：伺服器 IP 會被寫入前端連線與學生端 pre_settings.json (若供教室區網使用，請使用真實 IP)"
+read -p "請輸入伺服器對外/區網 IP (預設: $DETECTED_IP): " SERVER_IP
+SERVER_IP=${SERVER_IP:-$DETECTED_IP}
+
+read -p "請設定 Admin Token (直接 Enter 將自動產生隨機安全金鑰): " ADMIN_TOKEN
+if [ -z "$ADMIN_TOKEN" ]; then
+    if command -v openssl >/dev/null 2>&1; then
+        ADMIN_TOKEN=$(openssl rand -hex 16)
     else
-        NODE_VER=$(node -v)
-        echo "✅ Node.js 已安裝 ($NODE_VER)。"
+        ADMIN_TOKEN=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 32 || echo "ntut_exam_token_$(date +%s)")
     fi
+    echo "=> 已自動產生 Admin Token: $ADMIN_TOKEN"
+fi
+echo ""
+
+# ------------------------------------------------------------------
+# 選擇部署模式 (Docker vs 本機 Node.js)
+# ------------------------------------------------------------------
+echo "--- [階段 3] 選擇系統部署模式 ---"
+echo "1) Docker 完整部署 (推薦：前端、後端與 Piston 均以容器運行，隔離且免配置相依性)"
+echo "2) 本機 Node.js 部署 (在本地 Node 環境執行主系統，Piston 評測機以 Docker 運行)"
+read -p "請選擇部署模式 (1/2) [預設: 1]: " DEPLOY_MODE
+DEPLOY_MODE=${DEPLOY_MODE:-1}
+
+FRONTEND_BACKEND_URL="http://${SERVER_IP}:${APP_PORT}"
+
+if [ "$DEPLOY_MODE" = "1" ]; then
+    echo ""
+    echo "=> 選擇 [1] Docker 完整部署..."
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "❌ 錯誤：找不到 Docker！請先安裝並啟動 Docker Desktop。"
+        exit 1
+    fi
+
+    # 寫入 host/.env 供 docker compose 讀取
+    echo "=> 正在寫入 host/.env 設定檔..."
+    cat > "$HOST_DIR/.env" <<EOF
+APP_PORT=$APP_PORT
+FRONTEND_PORT=$FRONTEND_PORT
+PISTON_PORT=$PISTON_PORT
+ADMIN_TOKEN=$ADMIN_TOKEN
+ADMIN_SECRET=$ADMIN_TOKEN
+VITE_BACKEND_URL=$FRONTEND_BACKEND_URL
+EOF
+
+    echo "=> 正在使用 host 原生 Docker Compose 建置並啟動服務..."
+    docker compose -f "$HOST_DIR/docker-compose.yml" up -d --build
+    echo "✅ Docker 堆疊啟動指令已送出！"
+
+else
+    echo ""
+    echo "=> 選擇 [2] 本機 Node.js 部署..."
+
+    # 檢查 Node.js 版本 (要求 >= 20.19.0)
+    if ! command -v node >/dev/null 2>&1; then
+        echo "❌ 錯誤：找不到 Node.js！請安裝 Node.js >= 20.19.0。"
+        exit 1
+    fi
+
+    NODE_VERSION=$(node -v | sed 's/^v//')
+    NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
+    NODE_MINOR=$(echo "$NODE_VERSION" | cut -d. -f2)
+
+    if [ "$NODE_MAJOR" -lt 20 ] || { [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -lt 19 ]; }; then
+        echo "❌ 錯誤：Node.js 版本過舊 (目前為 v$NODE_VERSION)！"
+        echo "   host 系統要求 Node.js >= 20.19.0 (因 CommonJS require ESM-only p-limit@7 需求)。"
+        echo "   請前往 https://nodejs.org/ 下載更新 Node.js。"
+        exit 1
+    fi
+    echo "✅ Node.js 版本檢核通過: v$NODE_VERSION"
 
     # 檢查 pnpm
     if ! command -v pnpm >/dev/null 2>&1; then
@@ -61,210 +177,164 @@ if [[ "$USE_DOCKER" =~ ^[Nn]$ ]]; then
         npm install -g pnpm
     fi
 
-    echo "=> 正在安裝主系統 (host) 的相依套件..."
-    cd host
-    pnpm install
-    cd ..
-else
-    echo "=> 選擇使用 Docker 部署主系統。"
-fi
-
-# 設定 Windows 防火牆 (開放區域網路連線)
-echo ""
-echo "--- 區域網路連線與 Windows 防火牆設定 ---"
-read -p "是否要自動設定 Windows 防火牆以允許區域網路內的其他電腦連線? (y/n): " ALLOW_FIREWALL
-ALLOW_FIREWALL=${ALLOW_FIREWALL:-y}
-
-if [[ "$ALLOW_FIREWALL" =~ ^[Yy]$ ]]; then
-    # 檢查是否具有系統管理員權限
-    net session > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        echo "=> 已取得管理員權限，正在設定防火牆規則..."
-        # 開放後端 Port
-        netsh advfirewall firewall add rule name="NTUT Backend API ($APP_PORT)" dir=in action=allow protocol=TCP localport=$APP_PORT >/dev/null
-        # 開放前端 Port
-        netsh advfirewall firewall add rule name="NTUT Frontend ($FRONTEND_PORT)" dir=in action=allow protocol=TCP localport=$FRONTEND_PORT >/dev/null
-        echo "✅ Windows 防火牆設定完成！(已允許 TCP Port $APP_PORT 與 $FRONTEND_PORT)"
-    else
-        echo "⚠️ 警告：權限不足！"
-        echo "   無法自動設定防火牆，您必須對 Git Bash 右鍵點擊「以系統管理員身分執行」才能自動加入防火牆規則。"
-        echo "   或是請手動前往「具有進階安全性的 Windows Defender 防火牆」開啟 Inbound TCP Port $APP_PORT 與 $FRONTEND_PORT。"
-    fi
-fi
-
-echo ""
-
-# ------------------------------------------------------------------
-# 階段 2. Piston 部署
-# ------------------------------------------------------------------
-echo "--- [階段 2] Piston 程式碼執行環境部署 ---"
-read -p "請問是否要部署 Piston? (需要已安裝 Docker Desktop) (y/n): " DEPLOY_PISTON
-DEPLOY_PISTON=${DEPLOY_PISTON:-y}
-
-read -p "請輸入 Piston 執行服務 Port (預設: 2000): " PISTON_PORT
-PISTON_PORT=${PISTON_PORT:-2000}
-
-if [[ "$DEPLOY_PISTON" =~ ^[Yy]$ ]]; then
-    if ! command -v docker >/dev/null 2>&1; then
-        echo "❌ 錯誤：找不到 Docker 命令！部署 Piston 必須依賴 Docker，請先安裝 Docker Desktop。"
-    else
-        if [ ! -d "piston" ]; then
-            echo "=> 正在 clone Piston 專案..."
-            git clone https://github.com/engineer-man/piston.git piston
-        fi
-
-        echo "=> 正在注入 Piston 環境變數..."
-        PISTON_COMPOSE="piston/docker-compose.yaml"
-        if [ -f "$PISTON_COMPOSE" ]; then
-          if ! grep -q "PISTON_RUN_TIMEOUT" "$PISTON_COMPOSE"; then
-            cat >> "$PISTON_COMPOSE" <<'ENVBLOCK'
-        environment:
-            - PISTON_RUN_TIMEOUT=30000
-            - PISTON_RUN_CPU_TIME=30000
-            - PISTON_COMPILE_TIMEOUT=10000
-            - PISTON_COMPILE_CPU_TIME=10000
-            - PISTON_OUTPUT_MAX_SIZE=10240
-            - PISTON_RUN_MEMORY_LIMIT=-1
-            - PISTON_COMPILE_MEMORY_LIMIT=-1
-ENVBLOCK
-          fi
-        fi
-
-        # 如果 PISTON_PORT 不是 2000，我們使用 sed 來替換 port
-        if [ "$PISTON_PORT" != "2000" ]; then
-            sed -i "s/2000:2000/$PISTON_PORT:2000/g" "$PISTON_COMPOSE"
-        fi
-
-        echo "=> 正在背景啟動 Piston 容器..."
-        cd piston
-        docker compose up -d
-        cd ..
-        echo "✅ Piston 部署完成！"
-    fi
-else
-    echo "=> 略過 Piston 部署。"
-fi
-
-# ------------------------------------------------------------------
-# 階段 3. 寫入變數與啟動系統
-# ------------------------------------------------------------------
-echo ""
-echo "--- [階段 3] 產生環境變數與啟動系統 ---"
-
-read -p "請設定 Admin Secret (直接 Enter 將自動產生隨機密碼): " ADMIN_SECRET
-if [ -z "$ADMIN_SECRET" ]; then
-    ADMIN_SECRET=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 32 || echo "admin_secret_default_123")
-    echo "=> 已自動產生 Admin Secret: $ADMIN_SECRET"
-fi
-
-# 設定後端 PISTON_URL (如果主系統用 Docker，則使用 host.docker.internal 連接本機的 Piston 容器)
-if [[ "$USE_DOCKER" =~ ^[Yy]$ ]]; then
-    BACKEND_PISTON_URL="http://host.docker.internal:$PISTON_PORT"
-else
-    BACKEND_PISTON_URL="http://localhost:$PISTON_PORT"
-fi
-
-echo "=> 正在寫入 host/.env 設定檔..."
-cat > host/backend/.env <<EOF
+    # 寫入後端與前端環境變數
+    echo "=> 寫入後端設定 (backend/.env)..."
+    cat > "$HOST_DIR/backend/.env" <<EOF
 PORT=$APP_PORT
-PISTON_URL=$BACKEND_PISTON_URL
-ADMIN_SECRET=$ADMIN_SECRET
+PISTON_URL=http://localhost:$PISTON_PORT
+ADMIN_TOKEN=$ADMIN_TOKEN
+ADMIN_SECRET=$ADMIN_TOKEN
 EOF
 
-cat > host/frontend/.env <<EOF
-VITE_BACKEND_URL=http://localhost:$APP_PORT
+    echo "=> 寫入前端設定 (frontend/.env)..."
+    cat > "$HOST_DIR/frontend/.env" <<EOF
+VITE_BACKEND_URL=$FRONTEND_BACKEND_URL
 EOF
 
-if [[ "$USE_DOCKER" =~ ^[Yy]$ ]]; then
-    echo "=> 正在使用 Docker Compose 啟動主系統..."
-    cat > host/docker-compose.yml <<EOF
-version: '3.8'
+    # 啟動 Piston 容器
+    echo "=> 確保 Piston 評測機容器在背景運行..."
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "❌ 錯誤：Piston 沙盒評測機仍需 Docker Desktop 運行！請先啟動 Docker。"
+        exit 1
+    fi
+    PISTON_PORT=$PISTON_PORT docker compose -f "$SCRIPT_DIR/docker-compose.yaml" up -d
 
-services:
-  backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: ntut-backend
-    command: pnpm --filter backend run start
-    ports:
-      - "$APP_PORT:3000"
-    environment:
-      - PORT=3000
-      - PISTON_URL=$BACKEND_PISTON_URL
-      - ADMIN_SECRET=$ADMIN_SECRET
-      - DB_STORAGE=/app/data/database.sqlite
-    volumes:
-      - ./data:/app/data
-    restart: unless-stopped
+    # 安裝與建置主系統
+    echo "=> 正在安裝主系統 (host) 相依套件..."
+    cd "$HOST_DIR"
+    pnpm install
 
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        - VITE_BACKEND_URL=http://localhost:$APP_PORT
-    container_name: ntut-frontend
-    command: npx --yes serve -s frontend/dist -l 5173
-    ports:
-      - "$FRONTEND_PORT:5173"
-    depends_on:
-      - backend
-    restart: unless-stopped
-EOF
-    cd host
-    docker compose up -d --build
-    cd ..
-    echo "✅ Docker 系統啟動完成！"
-else
-    echo "=> 系統準備完成！"
-    echo "=> 請開啟兩個獨立的 Git Bash 終端機，並先執行 'cd host'，然後分別執行以下指令來啟動伺服器："
-    echo "   請使用以下的指令來啟動後端 API 服務："
-    echo "   cd host"
-    echo "   pnpm production"
+    echo "=> 正在建置主系統 (前端與後端編譯)..."
+    pnpm build
+    cd "$SCRIPT_DIR"
+
+    # 詢問啟動方式
+    read -p "是否要使用 PM2 將系統常駐於背景運行 (推薦)? (y/n) [預設: y]: " USE_PM2
+    USE_PM2=${USE_PM2:-y}
+
+    if [[ "$USE_PM2" =~ ^[Yy]$ ]]; then
+        if ! command -v pm2 >/dev/null 2>&1; then
+            echo "=> 正在安裝 pm2..."
+            npm install -g pm2
+        fi
+        echo "=> 使用 PM2 啟動後端與前端..."
+        cd "$HOST_DIR"
+        pm2 delete ntut-backend ntut-frontend 2>/dev/null || true
+        pm2 start pnpm --name "ntut-backend" -- --filter backend start
+        pm2 start npx --name "ntut-frontend" -- --yes serve -s frontend/dist -l "$FRONTEND_PORT"
+        pm2 save || true
+        cd "$SCRIPT_DIR"
+        echo "✅ 系統已於背景透過 PM2 啟動！可用 'pm2 list' 或 'pm2 logs' 檢視狀態。"
+    else
+        echo "=> 您可以隨時執行 ./start-host.sh 或在 $HOST_DIR 下執行 'pnpm start' 啟動服務。"
+    fi
+fi
+echo ""
+
+# ------------------------------------------------------------------
+# Windows 防火牆設定
+# ------------------------------------------------------------------
+if [ "$IS_WINDOWS" = true ] && [ "$IS_ADMIN" = true ]; then
+    echo "--- [階段 4] Windows 防火牆設定 ---"
+    read -p "是否自動新增 Windows 防火牆允許規則 (TCP $APP_PORT, $FRONTEND_PORT)? (y/n) [預設: y]: " ALLOW_FIREWALL
+    ALLOW_FIREWALL=${ALLOW_FIREWALL:-y}
+    if [[ "$ALLOW_FIREWALL" =~ ^[Yy]$ ]]; then
+        netsh advfirewall firewall delete rule name="NTUT Backend API ($APP_PORT)" >/dev/null 2>&1 || true
+        netsh advfirewall firewall delete rule name="NTUT Frontend ($FRONTEND_PORT)" >/dev/null 2>&1 || true
+        netsh advfirewall firewall add rule name="NTUT Backend API ($APP_PORT)" dir=in action=allow protocol=TCP localport="$APP_PORT" >/dev/null
+        netsh advfirewall firewall add rule name="NTUT Frontend ($FRONTEND_PORT)" dir=in action=allow protocol=TCP localport="$FRONTEND_PORT" >/dev/null
+        echo "✅ Windows 防火牆設定完成！"
+    fi
+    echo ""
 fi
 
-echo ""
-echo "======================================================="
-echo " 🎉 系統部署設定已順利完成！"
-echo " 🌐 前端網站: http://localhost:$FRONTEND_PORT (若防火牆已開，可透過 IP 給區域網路內其他電腦連線)"
-echo " 🔌 後端 API: http://localhost:$APP_PORT"
-echo " 🔑 Admin Secret: $ADMIN_SECRET"
-echo "======================================================="
+# ------------------------------------------------------------------
+# Piston 語言環境安裝
+# ------------------------------------------------------------------
+echo "--- [階段 5] Piston 程式碼評測語言環境安裝 ---"
+echo "正在等待 Piston 服務就緒..."
+PISTON_URL="http://localhost:$PISTON_PORT"
+READY=false
+for i in {1..30}; do
+    if curl -s -f "$PISTON_URL/api/v2/runtimes" >/dev/null 2>&1; then
+        READY=true
+        break
+    fi
+    sleep 1
+done
 
-# ------------------------------------------------------------------
-# 階段 4. Piston 語言環境安裝 (需花費較長時間)
-# ------------------------------------------------------------------
-if [[ "$DEPLOY_PISTON" =~ ^[Yy]$ ]] && [ -d "piston" ]; then
-    echo ""
-    echo "--- [階段 4] Piston 語言環境安裝 ---"
-    echo "現在系統與 Piston 已經啟動。接著可以選擇安裝 Piston 的語言環境 (如 gcc, python)。"
-    echo "注意：安裝過程可能會花費非常長的時間！"
-    echo "1) 安裝 Python"
-    echo "2) 安裝 GCC (C/C++)"
-    echo "3) 兩者皆安裝"
-    echo "4) 跳過"
-    read -p "請選擇您要安裝的語言 (1/2/3/4) [預設: 3]: " LANG_CHOICE
+if [ "$READY" = "true" ]; then
+    echo "✅ Piston 服務連線正常 ($PISTON_URL)"
+    echo "1) 安裝 Python (3.12.0)"
+    echo "2) 安裝 GCC (C/C++ 10.2.0)"
+    echo "3) Python 與 GCC 均安裝 (推薦)"
+    echo "4) 跳過語言套件安裝"
+    read -p "請選擇欲安裝的語言 (1/2/3/4) [預設: 3]: " LANG_CHOICE
     LANG_CHOICE=${LANG_CHOICE:-3}
 
-    if [ "$LANG_CHOICE" != "4" ]; then
-        echo "=> 正在準備 Piston CLI 工具..."
-        cd piston/cli
-        npm install >/dev/null 2>&1
-        cd ..
+    case "$LANG_CHOICE" in
+        1)
+            bash "$SCRIPT_DIR/piston.sh" python
+            ;;
+        2)
+            bash "$SCRIPT_DIR/piston.sh" gcc
+            ;;
+        3)
+            bash "$SCRIPT_DIR/piston.sh" python gcc
+            ;;
+        *)
+            echo "=> 跳過語言套件安裝。"
+            ;;
+    esac
+else
+    echo "⚠️ 暫時無法連線至 Piston API ($PISTON_URL)，已略過語言套件安裝。稍後可隨時執行 ./piston.sh 補裝。"
+fi
+echo ""
 
-        if [ "$LANG_CHOICE" == "1" ] || [ "$LANG_CHOICE" == "3" ]; then
-            echo "=> 正在安裝 Python (可能需數分鐘)..."
-            node cli/index.js ppman install python
-        fi
-        if [ "$LANG_CHOICE" == "2" ] || [ "$LANG_CHOICE" == "3" ]; then
-            echo "=> 正在安裝 GCC (可能需十數分鐘以上)..."
-            node cli/index.js ppman install gcc
-        fi
-        
-        cd ..
-        echo "✅ Piston 語言環境安裝完成！"
+# ------------------------------------------------------------------
+# 學生端 (Desktop) 配置產生與同步
+# ------------------------------------------------------------------
+echo "--- [階段 6] 學生端 (Desktop) 設定同步 ---"
+
+# 更新 client-setting/pre_settings.json
+PRE_SETTINGS_FILE="$SCRIPT_DIR/client-setting/pre_settings.json"
+cat > "$PRE_SETTINGS_FILE" <<EOF
+{
+  "testTitle": "北科大程式設計考試",
+  "description": "測驗時間請遵從現場監考人員指示",
+  "remoteHost": "http://${SERVER_IP}:${APP_PORT}"
+}
+EOF
+echo "✅ 已同步產生學生端設定檔: $PRE_SETTINGS_FILE"
+echo "   remoteHost => http://${SERVER_IP}:${APP_PORT}"
+
+# 若存在 desktop 專案，檢查是否已建置
+if [ -n "$DESKTOP_DIR" ]; then
+    DIST_DIR="$DESKTOP_DIR/dist"
+    # 尋找已編譯出的安裝檔
+    BUILT_EXE=$(find "$DIST_DIR" -maxdepth 1 -name "ntut-code-tester-*-setup.exe" 2>/dev/null | head -n1 || true)
+    if [ -n "$BUILT_EXE" ] && [ -f "$BUILT_EXE" ]; then
+        echo "=> 發現已建置的學生端安裝檔: $(basename "$BUILT_EXE")"
+        cp -f "$BUILT_EXE" "$SCRIPT_DIR/client-setting/ntut-code-tester.exe"
+        echo "✅ 已複製至 client-setting/ntut-code-tester.exe"
     else
-        echo "=> 已跳過語言安裝。"
+        echo "ℹ️ desktop 專案尚未打包 Windows 安裝檔。"
+        echo "   若需打包，請至 desktop 目錄執行: npm install && npm run build:win"
+        echo "   或執行 ./build-desktop.sh 自動處理。"
     fi
 fi
+echo ""
+
+# ------------------------------------------------------------------
+# 完成摘要報告
+# ------------------------------------------------------------------
+echo "======================================================="
+echo " 🎉 NTUT Exam System 部署設定已完成！"
+echo " 🌐 前端管理介面: http://${SERVER_IP}:${FRONTEND_PORT} (本地: http://localhost:${FRONTEND_PORT})"
+echo " 🔌 後端 API 服務: http://${SERVER_IP}:${APP_PORT}"
+echo " ⚙️ Piston 評測機: http://localhost:${PISTON_PORT}"
+echo " 🔑 Admin Token  : ${ADMIN_TOKEN}"
+echo "======================================================="
+echo " 📁 學生端部署包位置: client-setting/"
+echo "    包含已設定的 pre_settings.json 與部署腳本 test-deploy-v2.bat"
+echo "======================================================="

@@ -1,2 +1,25 @@
-include:
-  - ./piston/docker-compose.yaml
+services:
+  piston:
+    image: ghcr.io/engineer-man/piston
+    container_name: ntut-piston
+    ports:
+      - "${PISTON_PORT:-2000}:2000"
+    restart: unless-stopped
+    privileged: true
+    environment:
+      - PISTON_MAX_CONCURRENT_JOBS=${PISTON_MAX_CONCURRENT_JOBS:-8}
+      - PISTON_COMPILE_TIMEOUT=${PISTON_COMPILE_TIMEOUT:-30000}
+      - PISTON_OUTPUT_MAX_SIZE=${PISTON_OUTPUT_MAX_SIZE:-65536}
+    volumes:
+      - piston-packages:/piston/packages
+    tmpfs:
+      - /piston/jobs:exec,uid=1000,gid=1000,mode=711,size=1g
+      - /tmp:exec
+    deploy:
+      resources:
+        limits:
+          cpus: "${PISTON_CPUS:-4}"
+          memory: ${PISTON_MEMORY:-4g}
+
+volumes:
+  piston-packages:

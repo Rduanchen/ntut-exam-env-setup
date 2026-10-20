@@ -321,6 +321,88 @@ if ($COMPILE_SUCCESS) {
     Write-Host "  [SKIP] Compilation did not succeed"
 }
 
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "   Part 3: Python Environment Test" -ForegroundColor Cyan
+Write-Host "============================================================`n" -ForegroundColor Cyan
+
+$PYTHON_FOUND = $false
+$PYTHON_PATH = ""
+$PYTHON_VERSION = ""
+$PYTHON_IN_PATH = $false
+$PYTHON_EXEC_SUCCESS = $false
+
+Write-Host "[Step 1] Detecting Python..."
+Write-Host "------------------------------------------------------------"
+
+$pyExes = @("python.exe", "python3.exe", "py.exe")
+foreach ($p in $pyExes) {
+    $target = Get-Command $p -ErrorAction SilentlyContinue
+    if ($target) {
+        $PYTHON_PATH = $target.Source
+        $PYTHON_FOUND = $true
+        $PYTHON_IN_PATH = $true
+        Write-Host "  [OK] Found Python in PATH: $PYTHON_PATH"
+        break
+    }
+}
+
+if (-not $PYTHON_FOUND) {
+    Write-Host "  [WARN] Searching common Python install paths..." -ForegroundColor Yellow
+    $pyDirs = @(
+        "$env:LOCALAPPDATA\Programs\Python\Python313",
+        "$env:LOCALAPPDATA\Programs\Python\Python312",
+        "$env:LOCALAPPDATA\Programs\Python\Python311",
+        "$env:LOCALAPPDATA\Programs\Python\Python310",
+        "C:\Python313",
+        "C:\Python312",
+        "C:\Python311",
+        "C:\Python310",
+        "C:\Program Files\Python313",
+        "C:\Program Files\Python312",
+        "C:\Program Files\Python311"
+    )
+    foreach ($dir in $pyDirs) {
+        $fullPath = Join-Path $dir "python.exe"
+        if (Test-Path -LiteralPath $fullPath) {
+            $PYTHON_PATH = $fullPath
+            $PYTHON_FOUND = $true
+            $env:PATH = "$dir;" + $env:PATH
+            Write-Host "  [OK] Found Python at $dir, added to session PATH"
+            
+            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+            if (-not ($userPath -match [regex]::Escape($dir))) {
+                try {
+                    $newPath = "$dir;" + $userPath
+                    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+                    Write-Host "  [OK] Added $dir to User PATH permanently"
+                } catch {}
+            }
+            break
+        }
+    }
+}
+
+if ($PYTHON_FOUND) {
+    try {
+        $rawPyVer = (& $PYTHON_PATH --version 2>&1) | Out-String
+        $PYTHON_VERSION = $rawPyVer.Trim()
+        Write-Host "  Location : $PYTHON_PATH"
+        Write-Host "  Version  : $PYTHON_VERSION"
+
+        $testPyOut = (& $PYTHON_PATH -c "print('PYTHON_VERIFIED')" 2>&1) | Out-String
+        if ($testPyOut -match "PYTHON_VERIFIED") {
+            $PYTHON_EXEC_SUCCESS = $true
+            Write-Host "  [OK] Python execution test passed" -ForegroundColor Green
+        } else {
+            Write-Host "  [FAIL] Python execution test failed" -ForegroundColor Red
+        }
+    } catch {
+        Write-Host "  [FAIL] Error executing Python: $_" -ForegroundColor Red
+    }
+} else {
+    Write-Host "  [WARN] Python not found on machine" -ForegroundColor Yellow
+}
+
 Write-Host "`n============================================================"
 
 # 計算狀態文字
@@ -357,8 +439,6 @@ Write-Host -NoNewline "  VS Code        : "; Write-Host $vsText -ForegroundColor
 Write-Host -NoNewline "  VMware         : "; Write-Host $vmText -ForegroundColor $vmColor
 Write-Host -NoNewline "  Code::Blocks   : "; Write-Host $cbText -ForegroundColor $cbColor
 
-
-
 # 2. C 編譯環境狀態報告
 Write-Host "`n  [C Environment Status]"
 Write-Host "  Compiler Found : $sf"
@@ -376,6 +456,18 @@ if ($COMPILER_FOUND) {
 }
 Write-Host -NoNewline "  Compile Test   : "; Write-Host $sc -ForegroundColor $compileColor
 Write-Host -NoNewline "  Run Verify     : "; Write-Host $sr -ForegroundColor $runColor
+
+# 3. Python 環境狀態報告
+Write-Host "`n  [Python Environment Status]"
+$pyFoundText = if ($PYTHON_FOUND) { "YES" } else { "NO" }
+$pyExecText = if ($PYTHON_EXEC_SUCCESS) { "PASS" } else { "FAIL / NOT FOUND" }
+$pyExecColor = if ($PYTHON_EXEC_SUCCESS) { "Green" } else { "Yellow" }
+Write-Host "  Python Found   : $pyFoundText"
+if ($PYTHON_FOUND) {
+    Write-Host "  Location       : $PYTHON_PATH"
+    Write-Host "  Version        : $PYTHON_VERSION"
+}
+Write-Host -NoNewline "  Execute Verify : "; Write-Host $pyExecText -ForegroundColor $pyExecColor
 
 Write-Host "`n============================================================`n"
 
