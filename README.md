@@ -86,6 +86,14 @@ bash piston.sh
 bash piston.sh python gcc java
 ```
 
+### 使用 USB 搬移語言套件
+
+先在來源機器安裝並確認語言可用，再執行 `bash pack-piston/export.sh`。腳本會產生 `pack-piston/piston-packages.tar.gz`，可將此檔案複製到 USB。
+
+在新機器先啟動 Piston 容器，將 USB 中的壓縮檔複製到新機的 `pack-piston/` 目錄，執行 `bash pack-piston/import.sh`。腳本會把套件放進容器、重啟 Piston，並列出可用語言。若 Piston 對外連接埠不是 2000，執行時指定 `PISTON_PORT`。來源與目標機器須使用相容的 Docker 平台架構。
+
+匯入後無需再執行 `piston.sh` 的語言安裝步驟。若使用完整 Docker 部署，`host/docker-compose.yml` 目前沒有掛載 `/piston/packages`；重建該容器會失去匯入的套件，需再次匯入。
+
 ---
 
 ## 主系統服務管理 (若選擇本機 Node.js 部署)
