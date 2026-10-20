@@ -50,7 +50,7 @@ if [ -z "$HOST_DIR" ]; then
     read -p "是否自動 clone host 專案至此目錄？(y/n) [預設: y]: " CLONE_HOST
     CLONE_HOST=${CLONE_HOST:-y}
     if [[ "$CLONE_HOST" =~ ^[Yy]$ ]]; then
-        git clone https://github.com/Rduanchen/ntut-exam-v2.git "$SCRIPT_DIR/host"
+        git clone --branch develop --single-branch https://github.com/Rduanchen/ntut-exam-v2.git "$SCRIPT_DIR/host"
         HOST_DIR="$SCRIPT_DIR/host"
     else
         echo "❌ 錯誤：找不到 host 專案，無法繼續部署。"
@@ -58,6 +58,17 @@ if [ -z "$HOST_DIR" ]; then
     fi
 fi
 echo "✅ 已定位 host 專案: $HOST_DIR"
+
+# The default host branch still uses one public API port. This installer needs
+# the split admin/student API contract provided by the develop branch.
+if [ ! -f "$HOST_DIR/backend/src/index.ts" ] ||
+   [ ! -f "$HOST_DIR/docker-compose.yml" ] ||
+   ! grep -q 'USER_PORT' "$HOST_DIR/backend/src/index.ts" ||
+   ! grep -q 'VITE_ADMIN_TOKEN' "$HOST_DIR/docker-compose.yml"; then
+    echo "❌ 錯誤：host 版本與此部署工具不相容（需要雙 API Port 與管理端 Token）。"
+    echo "   請使用 ntut-exam-v2 的 develop 分支，或移開舊版 host 後重新執行 setup.sh。"
+    exit 1
+fi
 
 # 定位 desktop 專案 (選配)
 DESKTOP_DIR=""
@@ -142,6 +153,10 @@ echo "1) Docker 完整部署 (推薦：前端、後端與 Piston 均以容器運
 echo "2) 本機 Node.js 部署 (在本地 Node 環境執行主系統，Piston 評測機以 Docker 運行)"
 read -p "請選擇部署模式 (1/2) [預設: 1]: " DEPLOY_MODE
 DEPLOY_MODE=${DEPLOY_MODE:-1}
+if [[ "$DEPLOY_MODE" != "1" && "$DEPLOY_MODE" != "2" ]]; then
+    echo "❌ 錯誤：部署模式只能選 1 或 2。"
+    exit 1
+fi
 
 FRONTEND_BACKEND_URL="http://127.0.0.1:${ADMIN_PORT}"
 
@@ -335,6 +350,19 @@ if [ "$DEPLOY_MODE" = "1" ] || { [ "$DEPLOY_MODE" = "2" ] && [[ "${USE_PM2:-n}" 
         fi
     done
     echo "✅ 管理與學生 API 均已就緒。"
+    FRONTEND_READY=false
+    for i in {1..60}; do
+        if curl -s -f "http://127.0.0.1:$FRONTEND_PORT/" >/dev/null 2>&1; then
+            FRONTEND_READY=true
+            break
+        fi
+        sleep 1
+    done
+    if [ "$FRONTEND_READY" != "true" ]; then
+        echo "❌ 管理前端 Port $FRONTEND_PORT 未就緒，部署驗證失敗。"
+        exit 1
+    fi
+    echo "✅ 管理前端已就緒。"
 else
     echo "ℹ️ 未選擇 PM2；主系統已建置但尚未啟動，請執行 ./start-host.sh。"
 fi

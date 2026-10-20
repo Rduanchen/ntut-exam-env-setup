@@ -41,7 +41,7 @@ bash setup.sh
 
 ### 互動式設定流程：
 
-1. **專案定位**：自動偵測同層或子目錄下的 `host` 與 `desktop` 專案，若未下載可自動由 GitHub clone。
+1. **專案定位**：自動偵測同層或子目錄下的 `host` 與 `desktop` 專案；若未下載 `host`，會自動 clone 相容的 `ntut-exam-v2/develop` 分支。若已有舊版 `host`，腳本會在修改設定前停止並說明版本不相容。
 2. **通訊埠與伺服器 IP 設定**：
    - 管理 API Port（預設 `3000`，只供本機管理）
    - 學生 API Port（預設 `3001`，供學生端連線）
@@ -56,6 +56,7 @@ bash setup.sh
      - 寫入 `host/.env`：`ADMIN_PORT`、`USER_PORT`、`ADMIN_TOKEN` 與管理端本機綁定設定。
      - 完整保留 `host/docker-compose.yml` 之生產環境調校（含 tmpfs 任務目錄、沙盒限制與持久化儲存）。
      - `setup.sh` 先啟動本專案的 Piston，再使用 host Compose 建置與啟動前後端。
+     - 部署完成前會檢查 Piston、管理 API、學生 API 與管理前端均可連線；管理頁面請在部署主機開啟 `http://127.0.0.1:5173`（若自訂 Port，使用自訂值）。
    - **[2] 本機 Node.js 部署**：
      - 自動檢查本機 Node.js 版本（確保 `>= 20.19.0`）。
      - 自動產生 `host/backend/.env`（雙埠、token）與 `host/frontend/.env`（管理 API URL、同一 token）。

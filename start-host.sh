@@ -19,9 +19,18 @@ else
 fi
 echo "=> 使用 host 目錄: $HOST_DIR"
 
+if [ ! -f "$HOST_DIR/backend/.env" ] || [ ! -f "$HOST_DIR/frontend/.env" ]; then
+    echo "❌ 缺少主系統環境設定檔，請先執行 setup.sh 並選擇本機 Node.js 部署。"
+    exit 1
+fi
+
 # 只讀取連接埠數字，不執行 .env 中的任意內容。
 FRONTEND_PORT=$(sed -n 's/^FRONTEND_PORT=//p' "$HOST_DIR/backend/.env" | tail -n1)
 FRONTEND_PORT=${FRONTEND_PORT:-5173}
+ADMIN_PORT=$(sed -n 's/^ADMIN_PORT=//p' "$HOST_DIR/backend/.env" | tail -n1)
+ADMIN_PORT=${ADMIN_PORT:-3000}
+USER_PORT=$(sed -n 's/^USER_PORT=//p' "$HOST_DIR/backend/.env" | tail -n1)
+USER_PORT=${USER_PORT:-3001}
 PISTON_PORT=$(sed -n 's/^PISTON_PORT=//p' "$HOST_DIR/backend/.env" | tail -n1)
 PISTON_PORT=${PISTON_PORT:-2000}
 
@@ -68,4 +77,21 @@ echo "=> 啟動後端與本機管理前端..."
 pnpm --filter backend start &
 BACKEND_PID=$!
 trap 'kill "$BACKEND_PID" 2>/dev/null || true' EXIT INT TERM
+for API_PORT in "$ADMIN_PORT" "$USER_PORT"; do
+    API_READY=false
+    for i in {1..60}; do
+        if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+            break
+        fi
+        if curl -s -f "http://127.0.0.1:$API_PORT/health" >/dev/null 2>&1; then
+            API_READY=true
+            break
+        fi
+        sleep 1
+    done
+    if [ "$API_READY" != "true" ]; then
+        echo "❌ 後端 Port $API_PORT 未就緒，請檢查上方啟動錯誤。"
+        exit 1
+    fi
+done
 pnpm --filter frontend exec vite preview --host 127.0.0.1 --port "$FRONTEND_PORT" --strictPort
