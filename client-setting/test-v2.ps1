@@ -5,7 +5,7 @@ Write-Host "============================================================`n" -For
 # 宣告工具偵測變數
 $VSCODE_FOUND = $false
 $VMWARE_FOUND = $false
-$CB_FOUND = $false
+$SPYDER_FOUND = $false
 
 Write-Host "[Check] Looking for VS Code..."
 $VSCODE_PATH = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe"
@@ -32,19 +32,51 @@ if (Test-Path -LiteralPath $VMWARE_PATH_1) {
     Write-Host "  -> [FAIL] VMware not found." -ForegroundColor Red
 }
 
-Write-Host "`n[Check] Looking for Code::Blocks..."
-$CB_PATH_1 = "C:\Program Files\CodeBlocks\codeblocks.exe"
-$CB_PATH_2 = "C:\Program Files (x86)\CodeBlocks\codeblocks.exe"
-if (Test-Path -LiteralPath $CB_PATH_1) {
-    Write-Host "  -> [OK] Found Code::Blocks, launching..." -ForegroundColor Green
-    $CB_FOUND = $true
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c start `"`" `"$CB_PATH_1`"" -WindowStyle Hidden
-} elseif (Test-Path -LiteralPath $CB_PATH_2) {
-    Write-Host "  -> [OK] Found Code::Blocks, launching..." -ForegroundColor Green
-    $CB_FOUND = $true
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c start `"`" `"$CB_PATH_2`"" -WindowStyle Hidden
+Write-Host "`n[Check] Looking for Spyder..."
+$SPYDER_PATH = ""
+$spyderCommand = Get-Command "spyder.exe" -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($spyderCommand) {
+    $SPYDER_PATH = $spyderCommand.Source
 } else {
-    Write-Host "  -> [FAIL] Code::Blocks not found." -ForegroundColor Red
+    $spyderPaths = @(
+        "$env:LOCALAPPDATA\Programs\Spyder\Spyder.exe",
+        "$env:LOCALAPPDATA\Spyder\Spyder.exe",
+        "$env:ProgramFiles\Spyder\Spyder.exe",
+        "$env:USERPROFILE\anaconda3\Scripts\spyder.exe",
+        "$env:USERPROFILE\miniconda3\Scripts\spyder.exe",
+        "$env:LOCALAPPDATA\anaconda3\Scripts\spyder.exe",
+        "$env:LOCALAPPDATA\miniconda3\Scripts\spyder.exe",
+        "$env:ProgramData\anaconda3\Scripts\spyder.exe",
+        "$env:ProgramData\miniconda3\Scripts\spyder.exe"
+    )
+    foreach ($path in $spyderPaths) {
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            $SPYDER_PATH = $path
+            break
+        }
+    }
+}
+
+# Start menu shortcuts also cover standalone and custom Conda installations.
+if (-not $SPYDER_PATH) {
+    $startMenuPaths = @(
+        "$env:APPDATA\Microsoft\Windows\Start Menu\Programs",
+        "$env:ProgramData\Microsoft\Windows\Start Menu\Programs"
+    )
+    $spyderShortcut = Get-ChildItem -LiteralPath $startMenuPaths -Filter "Spyder*.lnk" -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($spyderShortcut) { $SPYDER_PATH = $spyderShortcut.FullName }
+}
+
+if ($SPYDER_PATH) {
+    try {
+        Start-Process -FilePath $SPYDER_PATH -ErrorAction Stop
+        $SPYDER_FOUND = $true
+        Write-Host "  -> [OK] Found Spyder, launched: $SPYDER_PATH" -ForegroundColor Green
+    } catch {
+        Write-Host "  -> [FAIL] Could not launch Spyder: $_" -ForegroundColor Red
+    }
+} else {
+    Write-Host "  -> [FAIL] Spyder not found." -ForegroundColor Red
 }
 
 Write-Host "`n============================================================" -ForegroundColor Cyan
@@ -412,8 +444,8 @@ if ($VSCODE_FOUND) { $vsText = "FOUND"; $vsColor = "Green" }
 $vmText  = "NOT FOUND"; $vmColor = "Red"
 if ($VMWARE_FOUND) { $vmText = "FOUND"; $vmColor = "Green" }
 
-$cbText  = "NOT FOUND"; $cbColor = "Red"
-if ($CB_FOUND) { $cbText = "FOUND"; $cbColor = "Green" }
+$spyderText = "NOT FOUND / LAUNCH FAILED"; $spyderColor = "Red"
+if ($SPYDER_FOUND) { $spyderText = "LAUNCHED"; $spyderColor = "Green" }
 
 $sf = if ($COMPILER_FOUND)  { "YES" } else { "NO" }
 $sc = if ($COMPILE_SUCCESS) { "PASS" } else { "FAIL" }
@@ -437,7 +469,7 @@ if ($OVERALL_SUCCESS) {
 Write-Host "`n  [Dev Tools Status]"
 Write-Host -NoNewline "  VS Code        : "; Write-Host $vsText -ForegroundColor $vsColor
 Write-Host -NoNewline "  VMware         : "; Write-Host $vmText -ForegroundColor $vmColor
-Write-Host -NoNewline "  Code::Blocks   : "; Write-Host $cbText -ForegroundColor $cbColor
+Write-Host -NoNewline "  Spyder         : "; Write-Host $spyderText -ForegroundColor $spyderColor
 
 # 2. C 編譯環境狀態報告
 Write-Host "`n  [C Environment Status]"

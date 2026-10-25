@@ -1,4 +1,5 @@
 @echo off
+setlocal
 chcp 65001 >nul
 
 echo ========================================
@@ -11,60 +12,58 @@ echo ========================================
 echo     Installing NTUT Code Tester Client
 echo ========================================
 set "INSTALLER="
-if exist "%~dp0ntut-code-tester.exe" set "INSTALLER=%~dp0ntut-code-tester.exe"
+if exist "%~dp0ntut-code-tester.exe" (
+    for %%F in ("%~dp0ntut-code-tester.exe") do if %%~zF GTR 0 set "INSTALLER=%%~fF"
+)
 if not defined INSTALLER (
-    for %%f in ("%~dp0ntut-code-tester*.exe") do set "INSTALLER=%%f"
-)
-
-if defined INSTALLER (
-    for %%F in ("%INSTALLER%") do (
-        if %%~zF EQU 0 (
-            echo [Error] Installer "%%~nxF" is an empty (0 byte) placeholder file!
-            echo Please build the desktop application (npm run build:win) and place the real installer here.
-        ) else (
-            echo Found installer: %%~nxF
-            echo Installing, please wait...
-            start /wait "" "%INSTALLER%"
-        )
+    for %%F in ("%~dp0ntut-code-tester-*-setup.exe") do (
+        if exist "%%~fF" if not "%%~zF"=="" if not "%%~zF"=="0" set "INSTALLER=%%~fF"
     )
-) else (
-    echo [Error] Cannot find ntut-code-tester installer in %~dp0
 )
+if not defined INSTALLER goto installer_missing
 
+echo Installing: "%INSTALLER%"
+start /wait "" "%INSTALLER%"
+set "INSTALL_EXIT=%ERRORLEVEL%"
+if not "%INSTALL_EXIT%"=="0" goto install_failed
+
+set "TARGET_DIR=%LOCALAPPDATA%\Programs\ntut-code-tester"
+if exist "%TARGET_DIR%\NTUTOnMachineTest.exe" goto deploy_settings
+set "TARGET_DIR=%LOCALAPPDATA%\Programs\NTUT On Machine Test"
+if exist "%TARGET_DIR%\NTUTOnMachineTest.exe" goto deploy_settings
+echo [Error] Cannot find NTUTOnMachineTest.exe after installation in:
+echo   "%LOCALAPPDATA%\Programs\ntut-code-tester"
+echo   "%LOCALAPPDATA%\Programs\NTUT On Machine Test"
+exit /b 1
+
+:deploy_settings
 echo.
 echo ========================================
 echo     Deploying pre_settings.json
 echo ========================================
-if not exist "%LOCALAPPDATA%\Programs\ntut-code-tester\resources" (
-    mkdir "%LOCALAPPDATA%\Programs\ntut-code-tester\resources" 2>nul
+if not exist "%~dp0pre_settings.json" (
+    echo [Error] pre_settings.json not found in "%~dp0"
+    exit /b 1
 )
-if not exist "%LOCALAPPDATA%\Programs\NTUT On Machine Test\resources" (
-    mkdir "%LOCALAPPDATA%\Programs\NTUT On Machine Test\resources" 2>nul
-)
-
-if exist "%~dp0pre_settings.json" (
-    copy /Y "%~dp0pre_settings.json" "%LOCALAPPDATA%\Programs\ntut-code-tester\resources\pre_settings.json" >nul 2>&1
-    copy /Y "%~dp0pre_settings.json" "%LOCALAPPDATA%\Programs\NTUT On Machine Test\resources\pre_settings.json" >nul 2>&1
-    echo [OK] pre_settings.json deployed.
-) else (
-    echo [Warning] pre_settings.json not found in %~dp0
-)
+if not exist "%TARGET_DIR%\resources" mkdir "%TARGET_DIR%\resources"
+copy /Y "%~dp0pre_settings.json" "%TARGET_DIR%\resources\pre_settings.json"
+if errorlevel 1 exit /b 1
+echo [OK] pre_settings.json deployed.
 
 echo.
 echo ========================================
 echo      Starting ntut-code-tester
 echo ========================================
-set "TARGET_EXE=%LOCALAPPDATA%\Programs\ntut-code-tester\NTUTOnMachineTest.exe"
-if not exist "%TARGET_EXE%" (
-    set "TARGET_EXE=%LOCALAPPDATA%\Programs\NTUT On Machine Test\NTUTOnMachineTest.exe"
-)
+set "TARGET_EXE=%TARGET_DIR%\NTUTOnMachineTest.exe"
+echo [OK] Starting application: "%TARGET_EXE%"
+start "" "%TARGET_EXE%"
+exit /b %ERRORLEVEL%
 
-if exist "%TARGET_EXE%" (
-    echo [OK] Starting application: %TARGET_EXE%
-    start "" "%TARGET_EXE%"
-    exit
-) else (
-    echo [Error] Cannot find NTUTOnMachineTest.exe in:
-    echo   %LOCALAPPDATA%\Programs\ntut-code-tester\
-    echo   %LOCALAPPDATA%\Programs\NTUT On Machine Test\
-)
+:installer_missing
+echo [Error] No non-empty ntut-code-tester installer found in "%~dp0"
+echo Replace the 0-byte placeholder with the real installer built by build-desktop.sh.
+exit /b 1
+
+:install_failed
+echo [Error] Installer failed or was cancelled. Exit code: %INSTALL_EXIT%
+exit /b %INSTALL_EXIT%

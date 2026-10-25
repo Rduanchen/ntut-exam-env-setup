@@ -39,29 +39,40 @@ ntut-exam-v2/
 bash setup.sh
 ```
 
+`setup.sh` 依序以 `source` 載入 `setup-*.sh`，讓各階段共用路徑、Port 與 Token；請透過主腳本執行。主系統使用本機 Node.js，Piston 評測機仍需要 Docker。
+
+每個腳本執行前都會詢問是否執行：直接按 Enter 或輸入 `y` 執行，輸入 `n` 略過。略過下載階段時會使用已存在的 host／desktop；略過環境設定階段時不會重寫 `.env`，其他階段使用本次預設值或環境變數（若既有設定使用自訂 Port，請先透過環境變數指定相同值）。執行建置前仍須有 host 專案及前後端 `.env`。
+
+| 腳本 | 工作 |
+| --- | --- |
+| `setup-download-host.sh` | 定位／下載 host、檢查相容性及定位 desktop |
+| `setup-host-env-config.sh` | 詢問連線設定、產生 Token、寫入前後端 `.env` |
+| `setup-node-env-check.sh` | 檢查 Node.js 與 pnpm |
+| `setup-activate-piston.sh` | 啟動 Piston 容器 |
+| `setup-import-piston.sh` | 選擇是否從 pack-piston 匯入已打包的語言套件 |
+| `setup-deploy-host.sh` | 安裝、建置主系統，選擇是否用 PM2 啟動 |
+| `setup-firewall.sh` | 設定 Windows 學生 API 防火牆規則 |
+| `setup-piston-language.sh` | 等待 Piston 就緒並安裝語言 |
+| `setup-verify-services.sh` | 檢查已啟動的主系統服務 |
+| `setup-client-config.sh` | 同步學生端設定與安裝檔 |
+
 ### 互動式設定流程：
 
 1. **專案定位**：自動偵測同層或子目錄下的 `host` 與 `desktop` 專案；若未下載 `host`，會自動 clone 相容的 `ntut-exam-v2/develop` 分支。若已有舊版 `host`，腳本會在修改設定前停止並說明版本不相容。
 2. **通訊埠與伺服器 IP 設定**：
-   - 管理 API Port（預設 `3000`，只供本機管理）
-   - 學生 API Port（預設 `3001`，供學生端連線）
+   - 管理 API Port（預設 `3001`，只供本機管理）
+   - 學生 API Port（預設 `3000`，供學生端連線）
    - 前端網站 Port（預設 `5173`）
    - Piston 評測服務 Port（預設 `2000`）
-   - 伺服器對外 / 區網 IP：腳本會自動偵測本機真實 IP，並將此 IP 與學生 API Port 寫入學生端 `pre_settings.json`。
+   - 伺服器對外 / 區網 IP：請輸入學生電腦能連線的伺服器 IP，並寫入學生端 `pre_settings.json`。目前預設值為 `0.0.0.0`，實際部署請填入可連線的 IP。
 3. **安全金鑰 (Admin Token)**：
    - 系統採用 `ADMIN_TOKEN` 驗證。可手動輸入至少 16 字元的安全金鑰，或由腳本自動產生。前端建置會包含此值，因此管理前端與管理 API 預設都只綁定本機。
-4. **選擇部署模式**：
-   - **[1] Docker 完整部署 (推薦)**：
-     - 前端、後端與 Piston 均封裝於容器中運行；Piston 由本部署工具的 Compose 管理，host Compose 只啟動前後端，避免同名容器衝突。
-     - 寫入 `host/.env`：`ADMIN_PORT`、`USER_PORT`、`ADMIN_TOKEN` 與管理端本機綁定設定。
-     - 完整保留 `host/docker-compose.yml` 之生產環境調校（含 tmpfs 任務目錄、沙盒限制與持久化儲存）。
-     - `setup.sh` 先啟動本專案的 Piston，再使用 host Compose 建置與啟動前後端。
-     - 部署完成前會檢查 Piston、管理 API、學生 API 與管理前端均可連線；管理頁面請在部署主機開啟 `http://127.0.0.1:5173`（若自訂 Port，使用自訂值）。
-   - **[2] 本機 Node.js 部署**：
-     - 自動檢查本機 Node.js 版本（確保 `>= 20.19.0`）。
-     - 自動產生 `host/backend/.env`（雙埠、token）與 `host/frontend/.env`（管理 API URL、同一 token）。
-     - 自動啟動 Piston 容器，並透過 `pnpm install` 與 `pnpm build` 建置系統。
-     - 支援以 **PM2** 常駐於背景運行，或以手動指令前台執行。
+4. **本機 Node.js 部署**：
+   - 自動檢查本機 Node.js 版本（確保 `>= 20.19.0`）。
+   - 自動產生 `host/backend/.env`（雙埠、Token）與 `host/frontend/.env`（管理 API URL、同一 Token）。
+   - 自動啟動 Piston 容器，並透過 `pnpm install` 與 `pnpm build` 建置系統。
+   - 可選擇以 **PM2** 在背景執行；若不使用 PM2，建置後請執行 `bash start-host.sh`。
+   - 使用 PM2 啟動時，會檢查管理 API、學生 API 與管理前端是否就緒。
 5. **Windows 防火牆設定**：以管理員身分執行時，只會開放學生 API Port；不會自動開放管理 API 或前端。
 6. **Piston 評測機語言套件安裝**：
    - 提供互動選單快速安裝：`Python (3.12.0)` 與 `GCC (C/C++ 10.2.0)`。
@@ -92,6 +103,8 @@ bash piston.sh python gcc java
 ### 使用 USB 搬移語言套件
 
 先在來源機器安裝並確認語言可用，再執行 `bash pack-piston/export.sh`。腳本會產生 `pack-piston/piston-packages.tar.gz`，可將此檔案複製到 USB。
+
+使用 `bash setup.sh` 部署時，啟動 Piston 後會詢問「是否匯入 Piston 語言套件」，預設執行。請先將 `piston-packages.tar.gz` 放進 `pack-piston/`；選擇執行後會呼叫 `pack-piston/import.sh`，並使用本次設定的 Piston Port。沒有打包檔案時請輸入 `n`，繼續使用語言安裝階段；匯入成功後可略過 `setup-piston-language.sh`。
 
 在新機器先啟動 Piston 容器，將 USB 中的壓縮檔複製到新機的 `pack-piston/` 目錄，執行 `bash pack-piston/import.sh`。腳本會把套件放進容器、重啟 Piston，並列出可用語言。若 Piston 對外連接埠不是 2000，執行時指定 `PISTON_PORT`。來源與目標機器須使用相容的 Docker 平台架構。
 
@@ -151,7 +164,7 @@ bash build-desktop.sh
 ```
 
 此腳本將自動執行：
-1. **執行 `test-v2.ps1` 進行環境測試**：檢測 VS Code、VMware、Code::Blocks、C/C++ 編譯器（gcc/g++/clang 指標與記憶體測試）以及 Python 執行環境。
+1. **執行 `test-v2.ps1` 進行環境測試**：檢測並啟動 VS Code、VMware、Spyder，檢測 C/C++ 編譯器（gcc/g++/clang 指標與記憶體測試）以及 Python 執行環境。
 2. **自動安裝 `ntut-code-tester.exe`**。
 3. **部署 `pre_settings.json`** 至應用程式目錄。
 4. **背景靜默啟動 `NTUTOnMachineTest.exe`**。
