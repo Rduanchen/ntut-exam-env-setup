@@ -6,7 +6,7 @@ ADMIN_PORT=${ADMIN_PORT:-3001}
 USER_PORT=${USER_PORT:-3000}
 FRONTEND_PORT=${FRONTEND_PORT:-5173}
 PISTON_PORT=${PISTON_PORT:-2000}
-SERVER_IP=${SERVER_IP:-0.0.0.0}
+SERVER_IP=${SERVER_IP:-}
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -77,21 +77,6 @@ if [ ! -f "$HOST_DIR/backend/src/index.ts" ] ||
     exit 1
 fi
 
-# 定位 desktop 專案 (選配)
-DESKTOP_DIR=""
-if [ -d "$SCRIPT_DIR/desktop" ]; then
-    DESKTOP_DIR="$SCRIPT_DIR/desktop"
-elif [ -d "$SCRIPT_DIR/../desktop" ]; then
-    DESKTOP_DIR="$(cd "$SCRIPT_DIR/../desktop" && pwd)"
-fi
-
-if [ -n "$DESKTOP_DIR" ]; then
-    echo "✅ 已定位 desktop 專案: $DESKTOP_DIR"
-else
-    echo "ℹ️ 未偵測到 desktop 專案資料夾 (將使用 client-setting/ 下既有設定)。"
-fi
-echo ""
-
 # ------------------------------------------------------------------
 # 網路與連線組態
 # ------------------------------------------------------------------
@@ -123,8 +108,8 @@ for PORT_VALUE in "$ADMIN_PORT" "$USER_PORT" "$FRONTEND_PORT" "$PISTON_PORT"; do
 done
 
 echo "💡 提示：伺服器 IP 只會寫入學生端 pre_settings.json；管理端預設僅供本機使用。"
-read -p "請輸入伺服器對外/區網 IP (預設: $SERVER_IP): " INPUT_SERVER_IP
-SERVER_IP=${INPUT_SERVER_IP:-$SERVER_IP}
+source "$SCRIPT_DIR/setup-server-ip.sh"
+confirm_server_ip || exit 1
 
 read -p "請設定 Admin Token (直接 Enter 將自動產生隨機安全金鑰): " ADMIN_TOKEN
 if [ -z "$ADMIN_TOKEN" ]; then
@@ -368,6 +353,8 @@ fi
 # ------------------------------------------------------------------
 echo "--- [階段 6] 學生端 (Desktop) 設定同步 ---"
 
+confirm_server_ip || exit 1
+
 # 更新 client-setting/pre_settings.json
 PRE_SETTINGS_FILE="$SCRIPT_DIR/client-setting/pre_settings.json"
 cat > "$PRE_SETTINGS_FILE" <<EOF
@@ -380,21 +367,6 @@ EOF
 echo "✅ 已同步產生學生端設定檔: $PRE_SETTINGS_FILE"
 echo "   remoteHost => http://${SERVER_IP}:${USER_PORT}"
 
-# 若存在 desktop 專案，檢查是否已建置
-if [ -n "$DESKTOP_DIR" ]; then
-    DIST_DIR="$DESKTOP_DIR/dist"
-    # 尋找已編譯出的安裝檔
-    BUILT_EXE=$(find "$DIST_DIR" -maxdepth 1 -name "ntut-code-tester-*-setup.exe" 2>/dev/null | head -n1 || true)
-    if [ -n "$BUILT_EXE" ] && [ -f "$BUILT_EXE" ]; then
-        echo "=> 發現已建置的學生端安裝檔: $(basename "$BUILT_EXE")"
-        cp -f "$BUILT_EXE" "$SCRIPT_DIR/client-setting/ntut-code-tester.exe"
-        echo "✅ 已複製至 client-setting/ntut-code-tester.exe"
-    else
-        echo "ℹ️ desktop 專案尚未打包 Windows 安裝檔。"
-        echo "   若需打包，請至 desktop 目錄執行: npm install && npm run build:win"
-        echo "   或執行 ./build-desktop.sh 自動處理。"
-    fi
-fi
 echo ""
 
 # ------------------------------------------------------------------

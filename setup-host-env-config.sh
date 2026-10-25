@@ -36,8 +36,8 @@ for PORT_NAME in ADMIN_PORT USER_PORT FRONTEND_PORT PISTON_PORT; do
 done
 
 echo "💡 提示：伺服器 IP 只會寫入學生端 pre_settings.json；管理端預設僅供本機使用。"
-read -p "請輸入伺服器對外/區網 IP (預設: $SERVER_IP): " INPUT_SERVER_IP
-SERVER_IP=${INPUT_SERVER_IP:-$SERVER_IP}
+source "$SCRIPT_DIR/setup-server-ip.sh"
+confirm_server_ip || exit 1
 
 read -p "請設定 Admin Token (直接 Enter 將自動產生隨機安全金鑰): " ADMIN_TOKEN
 if [ -z "$ADMIN_TOKEN" ]; then

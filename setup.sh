@@ -6,7 +6,7 @@ ADMIN_PORT=${ADMIN_PORT:-3001}
 USER_PORT=${USER_PORT:-3000}
 FRONTEND_PORT=${FRONTEND_PORT:-5173}
 PISTON_PORT=${PISTON_PORT:-2000}
-SERVER_IP=${SERVER_IP:-0.0.0.0}
+SERVER_IP=${SERVER_IP:-}
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -41,19 +41,11 @@ fi
 
 # 即使略過下載階段，仍可使用已存在的專案；不進行下載或修改。
 HOST_DIR=""
-DESKTOP_DIR=""
-for PROJECT_NAME in host desktop; do
-    PROJECT_DIR=""
-    if [ -d "$SCRIPT_DIR/$PROJECT_NAME" ]; then
-        PROJECT_DIR="$SCRIPT_DIR/$PROJECT_NAME"
-    elif [ -d "$SCRIPT_DIR/../$PROJECT_NAME" ]; then
-        PROJECT_DIR="$(cd "$SCRIPT_DIR/../$PROJECT_NAME" && pwd)"
-    fi
-    case "$PROJECT_NAME" in
-        host) HOST_DIR=$PROJECT_DIR ;;
-        desktop) DESKTOP_DIR=$PROJECT_DIR ;;
-    esac
-done
+if [ -d "$SCRIPT_DIR/host" ]; then
+    HOST_DIR="$SCRIPT_DIR/host"
+elif [ -d "$SCRIPT_DIR/../host" ]; then
+    HOST_DIR="$(cd "$SCRIPT_DIR/../host" && pwd)"
+fi
 
 EXECUTED_STEPS=0
 SKIPPED_STEPS=0

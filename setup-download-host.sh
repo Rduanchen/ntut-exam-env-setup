@@ -36,17 +36,4 @@ if [ ! -f "$HOST_DIR/backend/src/index.ts" ] ||
     exit 1
 fi
 
-# 定位 desktop 專案 (選配)
-DESKTOP_DIR=""
-if [ -d "$SCRIPT_DIR/desktop" ]; then
-    DESKTOP_DIR="$SCRIPT_DIR/desktop"
-elif [ -d "$SCRIPT_DIR/../desktop" ]; then
-    DESKTOP_DIR="$(cd "$SCRIPT_DIR/../desktop" && pwd)"
-fi
-
-if [ -n "$DESKTOP_DIR" ]; then
-    echo "✅ 已定位 desktop 專案: $DESKTOP_DIR"
-else
-    echo "ℹ️ 未偵測到 desktop 專案資料夾 (將使用 client-setting/ 下既有設定)。"
-fi
 echo ""

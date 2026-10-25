@@ -54,17 +54,17 @@ bash setup.sh
 | `setup-firewall.sh` | 設定 Windows 學生 API 防火牆規則 |
 | `setup-piston-language.sh` | 等待 Piston 就緒並安裝語言 |
 | `setup-verify-services.sh` | 由 start-host.sh 載入，檢查前後端是否就緒 |
-| `setup-client-config.sh` | 同步學生端設定與安裝檔 |
+| `setup-client-config.sh` | 產生學生端派送設定 |
 
 ### 互動式設定流程：
 
-1. **專案定位**：自動偵測同層或子目錄下的 `host` 與 `desktop` 專案；若未下載 `host`，會自動 clone 相容的 `ntut-exam-v2/develop` 分支。若已有舊版 `host`，腳本會在修改設定前停止並說明版本不相容。
+1. **專案定位**：自動偵測同層或子目錄下的 `host` 專案；若未下載 `host`，會自動 clone 相容的 `ntut-exam-v2/develop` 分支。若已有舊版 `host`，腳本會在修改設定前停止並說明版本不相容。
 2. **通訊埠與伺服器 IP 設定**：
    - 管理 API Port（預設 `3001`，只供本機管理）
    - 學生 API Port（預設 `3000`，供學生端連線）
    - 前端網站 Port（預設 `5173`）
    - Piston 評測服務 Port（預設 `2000`）
-   - 伺服器對外 / 區網 IP：請輸入學生電腦能連線的伺服器 IP，並寫入學生端 `pre_settings.json`。目前預設值為 `0.0.0.0`，實際部署請填入可連線的 IP。
+   - 伺服器區網 IP：自動列出本機網卡的區網 IPv4，可選擇或手動輸入；確認學生連線網址後才寫入設定。多網卡時請選學生電腦可連線的位址。偵測失敗時需手動輸入，不會將 `0.0.0.0` 寫入 `pre_settings.json`。學生 API 仍監聽 `0.0.0.0`，管理 API 的 `.env` 設定維持 `127.0.0.1`。
 3. **安全金鑰 (Admin Token)**：
    - 系統採用 `ADMIN_TOKEN` 驗證。可手動輸入至少 16 字元的安全金鑰，或由腳本自動產生。前端建置會包含此值，因此管理前端與管理 API 預設都只綁定本機。
 4. **本機 Node.js 部署**：
@@ -78,7 +78,8 @@ bash setup.sh
    - 提供互動選單快速安裝：`Python (3.12.0)` 與 `GCC (C/C++ 10.2.0)`。
 7. **學生端設定自動同步**：
    - 自動更新 `client-setting/pre_settings.json` 的 `remoteHost` 為伺服器真實 IP 與學生 API Port。
-   - 若 `desktop` 已編譯 Windows 安裝檔，自動複製至 `client-setting/ntut-code-tester.exe`。
+   - setup 流程不偵測或設定 desktop 專案，也不複製其安裝檔；如需處理安裝檔，另行執行 `build-desktop.sh`。
+   - 即使略過網路組態階段，產生派送設定前仍會偵測並要求確認 IP。
 
 ---
 
