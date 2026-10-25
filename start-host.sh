@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SKIP_BUILD=false
+case "${1:-}" in
+    "") ;;
+    --skip-build) SKIP_BUILD=true ;;
+    *) echo "用法：bash start-host.sh [--skip-build]" >&2; exit 1 ;;
+esac
+
 # 取得這個腳本所在的目錄
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -20,7 +27,7 @@ fi
 echo "=> 使用 host 目錄: $HOST_DIR"
 
 if [ ! -f "$HOST_DIR/backend/.env" ] || [ ! -f "$HOST_DIR/frontend/.env" ]; then
-    echo "❌ 缺少主系統環境設定檔，請先執行 setup.sh 並選擇本機 Node.js 部署。"
+    echo "❌ 缺少主系統環境設定檔，請先執行 setup.sh 設定環境。"
     exit 1
 fi
 
@@ -28,9 +35,9 @@ fi
 FRONTEND_PORT=$(sed -n 's/^FRONTEND_PORT=//p' "$HOST_DIR/backend/.env" | tail -n1)
 FRONTEND_PORT=${FRONTEND_PORT:-5173}
 ADMIN_PORT=$(sed -n 's/^ADMIN_PORT=//p' "$HOST_DIR/backend/.env" | tail -n1)
-ADMIN_PORT=${ADMIN_PORT:-3000}
+ADMIN_PORT=${ADMIN_PORT:-3001}
 USER_PORT=$(sed -n 's/^USER_PORT=//p' "$HOST_DIR/backend/.env" | tail -n1)
-USER_PORT=${USER_PORT:-3001}
+USER_PORT=${USER_PORT:-3000}
 PISTON_PORT=$(sed -n 's/^PISTON_PORT=//p' "$HOST_DIR/backend/.env" | tail -n1)
 PISTON_PORT=${PISTON_PORT:-2000}
 
@@ -67,31 +74,37 @@ if ! command -v pnpm >/dev/null 2>&1; then
     npm install -g pnpm
 fi
 
-echo "=> 安裝相依套件..."
-pnpm install
+if [ "$SKIP_BUILD" = false ]; then
+    echo "=> 安裝相依套件..."
+    pnpm install
 
-echo "=> 建置系統..."
-pnpm build
+    echo "=> 建置系統..."
+    pnpm build
+fi
 
 echo "=> 啟動後端與本機管理前端..."
 pnpm --filter backend start &
 BACKEND_PID=$!
-trap 'kill "$BACKEND_PID" 2>/dev/null || true' EXIT INT TERM
-for API_PORT in "$ADMIN_PORT" "$USER_PORT"; do
-    API_READY=false
-    for i in {1..60}; do
-        if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
-            break
-        fi
-        if curl -s -f "http://127.0.0.1:$API_PORT/health" >/dev/null 2>&1; then
-            API_READY=true
-            break
-        fi
-        sleep 1
-    done
-    if [ "$API_READY" != "true" ]; then
-        echo "❌ 後端 Port $API_PORT 未就緒，請檢查上方啟動錯誤。"
-        exit 1
-    fi
+FRONTEND_PID=""
+cleanup() {
+    trap - EXIT
+    kill "$BACKEND_PID" ${FRONTEND_PID:+"$FRONTEND_PID"} 2>/dev/null || true
+    wait "$BACKEND_PID" ${FRONTEND_PID:+"$FRONTEND_PID"} 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+pnpm --filter frontend exec vite preview --host 127.0.0.1 --port "$FRONTEND_PORT" --strictPort &
+FRONTEND_PID=$!
+
+source "$SCRIPT_DIR/setup-verify-services.sh"
+echo "✅ 主系統已啟動，按 Ctrl+C 停止前後端。"
+# 任一服務結束時一併收尾，避免只剩另一個服務繼續運行。
+while kill -0 "$BACKEND_PID" 2>/dev/null && kill -0 "$FRONTEND_PID" 2>/dev/null; do
+    sleep 1
 done
-pnpm --filter frontend exec vite preview --host 127.0.0.1 --port "$FRONTEND_PORT" --strictPort
+if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+    wait "$BACKEND_PID"
+else
+    wait "$FRONTEND_PID"
+fi

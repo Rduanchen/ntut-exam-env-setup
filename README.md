@@ -50,10 +50,10 @@ bash setup.sh
 | `setup-node-env-check.sh` | 檢查 Node.js 與 pnpm |
 | `setup-activate-piston.sh` | 啟動 Piston 容器 |
 | `setup-import-piston.sh` | 選擇是否從 pack-piston 匯入已打包的語言套件 |
-| `setup-deploy-host.sh` | 安裝、建置主系統，選擇是否用 PM2 啟動 |
+| `setup-deploy-host.sh` | 安裝、建置主系統 |
 | `setup-firewall.sh` | 設定 Windows 學生 API 防火牆規則 |
 | `setup-piston-language.sh` | 等待 Piston 就緒並安裝語言 |
-| `setup-verify-services.sh` | 檢查已啟動的主系統服務 |
+| `setup-verify-services.sh` | 由 start-host.sh 載入，檢查前後端是否就緒 |
 | `setup-client-config.sh` | 同步學生端設定與安裝檔 |
 
 ### 互動式設定流程：
@@ -71,8 +71,8 @@ bash setup.sh
    - 自動檢查本機 Node.js 版本（確保 `>= 20.19.0`）。
    - 自動產生 `host/backend/.env`（雙埠、Token）與 `host/frontend/.env`（管理 API URL、同一 Token）。
    - 自動啟動 Piston 容器，並透過 `pnpm install` 與 `pnpm build` 建置系統。
-   - 可選擇以 **PM2** 在背景執行；若不使用 PM2，建置後請執行 `bash start-host.sh`。
-   - 使用 PM2 啟動時，會檢查管理 API、學生 API 與管理前端是否就緒。
+   - 全部設定階段結束後，會詢問是否透過 `start-host.sh` 在前景啟動；預設執行，按 Ctrl+C 停止前後端。
+   - 本次已完成建置時不重複安裝或建置；啟動時會檢查管理 API、學生 API 與管理前端是否就緒。
 5. **Windows 防火牆設定**：以管理員身分執行時，只會開放學生 API Port；不會自動開放管理 API 或前端。
 6. **Piston 評測機語言套件安裝**：
    - 提供互動選單快速安裝：`Python (3.12.0)` 與 `GCC (C/C++ 10.2.0)`。
@@ -112,26 +112,17 @@ bash piston.sh python gcc java
 
 ---
 
-## 主系統服務管理 (若選擇本機 Node.js 部署)
+## 主系統服務管理
 
-### 方式 A：透過 PM2 管理 (背景常駐)
-
-- **查看運行中服務**：`pm2 list`
-- **查看即時日誌**：`pm2 logs` (或 `pm2 logs ntut-backend`)
-- **重啟服務**：`pm2 restart ntut-backend` 或 `pm2 restart ntut-frontend`
-- **停止服務**：`pm2 stop all`
-- **刪除服務**：`pm2 delete all`
-
-### 方式 B：手動指令啟動
+統一透過以下腳本啟動，會檢查 Piston、安裝套件、建置並啟動前後端：
 
 ```bash
-# 透過整合腳本 (會先確認 Piston 運行後啟動 host)
 bash start-host.sh
-
-# 或直接在 host 目錄下
-cd host
-pnpm start
 ```
+
+服務會在目前的終端機執行，直接顯示日誌；按 Ctrl+C 停止前後端，再次執行相同指令即可重新啟動。Piston 容器會繼續在背景執行。
+
+`setup.sh` 最後也會詢問是否啟動同一個腳本。若本次已執行 `setup-deploy-host.sh`，會傳入 `--skip-build` 避免重複安裝與建置。
 
 ---
 

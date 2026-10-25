@@ -58,8 +58,8 @@ done
 EXECUTED_STEPS=0
 SKIPPED_STEPS=0
 run_setup_step() {
-    local step_file=$1
-    local step_prompt=${2:-是否執行 $step_file？}
+    local step_file="$1"
+    local step_prompt="${2:-是否執行 ${step_file}？}"
     local answer
     while true; do
         if ! read -r -p "$step_prompt (y/n) [預設: y]: " answer; then
@@ -92,7 +92,15 @@ run_setup_step() {
     fi
 
     # 必須直接執行 source，讓階段共用變數，並保留 set -e 的失敗即停止行為。
-    source "$SCRIPT_DIR/$step_file"
+    if [ "$step_file" = start-host.sh ]; then
+        if [ "${HOST_BUILT:-false}" = true ]; then
+            bash "$SCRIPT_DIR/start-host.sh" --skip-build
+        else
+            bash "$SCRIPT_DIR/start-host.sh"
+        fi
+    else
+        source "$SCRIPT_DIR/$step_file"
+    fi
     EXECUTED_STEPS=$((EXECUTED_STEPS + 1))
 }
 
@@ -105,8 +113,8 @@ run_setup_step setup-import-piston.sh "是否匯入 Piston 語言套件（執行
 run_setup_step setup-deploy-host.sh
 run_setup_step setup-firewall.sh
 run_setup_step setup-piston-language.sh
-run_setup_step setup-verify-services.sh
 run_setup_step setup-client-config.sh
+run_setup_step start-host.sh "是否使用 start-host.sh 啟動主系統（前景執行，Ctrl+C 停止）？"
 
 echo "======================================================="
 echo " NTUT Exam System 設定流程結束"
