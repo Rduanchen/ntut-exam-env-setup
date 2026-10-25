@@ -1,188 +1,198 @@
 # 北科大程式設計考試環境 (NTUT Exam Environment Setup)
 
-本專案為北科大程式設計考試系統的整合部署與環境配置工具。提供自動化腳本，能協助您快速完成主機系統 (`host`)、評測機 (`Piston`) 與學生端 (`desktop`) 的環境建置與組態同步。
+本專案提供考試主系統（host）、Piston 評測機及學生端連線設定的部署指令。請先完成 host 安裝，再依教室需求選擇學生端：可安裝程式的電腦使用 desktop 派送包；無法安裝程式的電腦另外執行 `start-online.sh`，讓學生以瀏覽器作答。
 
----
+## 第一步：準備主機環境
 
-## 系統需求 (Prerequisites)
+以下指令都在教師端／考試伺服器執行。Windows 請使用 Git Bash，首次設定建議以系統管理員身分開啟，以便設定學生 API 的防火牆規則。
 
-- **Node.js**：**Node.js >= 20.19.0**（若主系統選擇非 Docker 部署為必備；因後端 CommonJS 載入 ESM 套件需支援）。
-- **Docker Desktop**：必備（無論主系統是否使用 Docker，Piston 程式碼沙盒評測機均依賴 Linux 隔離容器運行）。
-- **Git Bash**：Windows 使用者強烈建議，且建議以**系統管理員身分**執行（以利只開放學生 API 的 Windows 防火牆規則）。
-- **pnpm**：`pnpm >= 9`（主系統專案採用 pnpm workspace 管理）。
+安裝並確認下列工具：
 
----
+| 工具 | 需求與用途 |
+| --- | --- |
+| Git | 下載部署工具與 host／online 專案 |
+| Node.js 與 npm | host 需要 Node.js >= 20.19.0；online 支援 Node.js 20.19+ 或 22.12+，不支援 21 |
+| pnpm | host 需要 >= 9；若要使用 online，請準備 >= 10 |
+| Docker Desktop／Docker Engine | 執行 Piston；需先啟動 Docker，並能使用 `docker compose` |
+| curl | 安裝流程用來檢查服務與安裝 Piston 語言套件 |
 
-## 專案結構說明
+在 Git Bash／終端機檢查：
 
-本環境部署工具設計可相容以下目錄佈局：
-```text
-ntut-exam-v2/
-├── host/                     # 考試主系統 (後端 Express + 前端 Vue)
-├── desktop/                  # 學生端桌面應用程式 (Electron + Vue)
-└── ntut-exam-env-setup/       # 本部署專案
-    ├── setup.sh              # 核心互動式自動部署與環境設定腳本
-    ├── start-host.sh         # 主機系統啟動腳本 (檢查 Piston 並啟動 host)
-    ├── piston.sh             # Piston 容器啟動與語言套件安裝工具
-    ├── build-desktop.sh      # 學生端程式打包與同步工具
-    ├── docker-compose.yaml   # Piston 評測機獨立 Docker 設定
-    └── client-setting/       # 學生端派送包 (含腳本、檢測工具與 pre_settings.json)
+```bash
+node --version
+npm --version
+pnpm --version
+git --version
+docker info
+docker compose version
+curl --version
 ```
 
----
+若尚未安裝 pnpm，或要升級至 online 所需版本：
 
-## 快速自動化部署 (Quick Setup)
+```bash
+npm install -g pnpm@10
+```
 
-在終端機（Windows 請開啟 Git Bash，建議以管理員身分執行）執行：
+## 第二步：下載並進入部署工具目錄
+
+```bash
+git clone https://github.com/Rduanchen/ntut-exam-env-setup.git
+cd ntut-exam-env-setup
+```
+
+若已下載本專案，直接在既有 `ntut-exam-env-setup` 目錄開啟終端機即可。
+
+host 與 online 可以放在本目錄內，也可以放在同層；腳本會優先使用本目錄內的專案。找不到時，安裝流程會下載至本目錄。
+
+```text
+ntut-exam-env-setup/
+├── setup.sh                  # host、Piston 與學生端連線設定
+├── start-host.sh             # 啟動 host
+├── start-online.sh           # 獨立安裝與啟動 online 的指令入口
+├── start-online.mjs          # online 設定、建置及服務啟停邏輯
+├── piston.sh                 # Piston 啟動與語言套件維護
+├── docker-compose.yaml       # Piston 容器設定
+├── pack-piston/              # 語言套件匯出／匯入工具
+├── client-setting/           # desktop 派送包與 pre_settings.json
+├── host/                     # 自動下載的 host（也可位於同層）
+├── ntut-exam-online/          # 選用；自動下載的 online（也可位於同層）
+├── online-settings.json      # 首次設定 online 後產生
+└── online-data/              # online 執行資料與預設作答保存目錄
+```
+
+## 第三步：安裝 host 與 Piston
+
+在部署工具目錄執行：
 
 ```bash
 bash setup.sh
 ```
 
-`setup.sh` 依序以 `source` 載入 `setup-*.sh`，讓各階段共用路徑、Port 與 Token；請透過主腳本執行。主系統使用本機 Node.js，Piston 評測機仍需要 Docker。
+每個階段都會詢問是否執行：直接按 Enter 或輸入 `y` 執行，輸入 `n` 略過。第一次部署請依序完成必要階段；`setup-*.sh` 會共用設定，請透過 `setup.sh` 執行。
 
-每個腳本執行前都會詢問是否執行：直接按 Enter 或輸入 `y` 執行，輸入 `n` 略過。略過下載階段時會使用已存在的 host／desktop；略過環境設定階段時不會重寫 `.env`，其他階段使用本次預設值或環境變數（若既有設定使用自訂 Port，請先透過環境變數指定相同值）。執行建置前仍須有 host 專案及前後端 `.env`。
+依畫面順序操作：
 
-| 腳本 | 工作 |
-| --- | --- |
-| `setup-download-host.sh` | 定位／下載 host、檢查相容性及定位 desktop |
-| `setup-host-env-config.sh` | 詢問連線設定、產生 Token、寫入前後端 `.env` |
-| `setup-node-env-check.sh` | 檢查 Node.js 與 pnpm |
-| `setup-activate-piston.sh` | 啟動 Piston 容器 |
-| `setup-import-piston.sh` | 選擇是否從 pack-piston 匯入已打包的語言套件 |
-| `setup-deploy-host.sh` | 安裝、建置主系統 |
-| `setup-firewall.sh` | 設定 Windows 學生 API 防火牆規則 |
-| `setup-piston-language.sh` | 等待 Piston 就緒並安裝語言 |
-| `setup-verify-services.sh` | 由 start-host.sh 載入，檢查前後端是否就緒 |
-| `setup-client-config.sh` | 產生學生端派送設定 |
+1. **定位或下載 host**：沒有 host 時，同意下載 `ntut-exam-v2` 的 `develop` 分支。既有 host 需支援雙 API Port 與管理 Token，版本不符時流程會停止。
+2. **設定 Port 與主機 IP**：一般可沿用下表預設值。從偵測結果選擇學生電腦能連線的區網 IPv4；多網卡時請確認選對網卡。不要填 `0.0.0.0` 或 `127.0.0.1`。
+3. **設定 Admin Token**：直接按 Enter 自動產生；若手動指定，至少 16 字元，僅使用英數字、底線或連字號。腳本會寫入 host 前後端 `.env`，管理前端與管理 API 僅供主機本機使用。
+4. **檢查 Node.js 與 pnpm，啟動 Piston**：確認 Docker 已運行。
+5. **選擇是否匯入語言套件**：若已有 `pack-piston/piston-packages.tar.gz`，執行匯入；沒有此檔時請輸入 `n`，稍後改用語言安裝階段。
+6. **安裝與建置 host**：執行相依套件安裝及前後端建置。
+7. **設定 Windows 防火牆**：若以系統管理員執行，可同意開放學生 API Port；管理 API 與管理前端不會自動開放。其他環境或未以管理員執行時，請自行允許學生 API 的 TCP Port。
+8. **安裝 Piston 語言套件**：需要 C／C++ 與 Python 時選 `3`。若已成功匯入所需套件，可略過此階段。
+9. **產生學生端連線設定**：確認 IP 後更新 `client-setting/pre_settings.json`。此階段只產生設定，不會下載或複製 desktop 安裝檔。
+10. **啟動 host**：最後詢問是否執行 `start-host.sh` 時，按 Enter 啟動，並保持此終端機開啟。本次已建置時不會重複建置。
 
-### 互動式設定流程：
+| 服務 | 預設 Port | 使用方式 |
+| --- | --- | --- |
+| host 管理 API | 3001 | 僅本機，供管理前端及 online backend 使用 |
+| host 學生 API | 3000 | 供 desktop 學生端連線 |
+| host 管理前端 | 5173 | 僅本機瀏覽器使用 |
+| Piston | 2000 | 供 host 評測使用 |
+| online 學生網站（選用） | 3003 | 供學生瀏覽器連線 |
+| online TA 後台（選用） | 3004 | 僅本機瀏覽器使用 |
 
-1. **專案定位**：自動偵測同層或子目錄下的 `host` 專案；若未下載 `host`，會自動 clone 相容的 `ntut-exam-v2/develop` 分支。若已有舊版 `host`，腳本會在修改設定前停止並說明版本不相容。
-2. **通訊埠與伺服器 IP 設定**：
-   - 管理 API Port（預設 `3001`，只供本機管理）
-   - 學生 API Port（預設 `3000`，供學生端連線）
-   - 前端網站 Port（預設 `5173`）
-   - Piston 評測服務 Port（預設 `2000`）
-   - 伺服器區網 IP：自動列出本機網卡的區網 IPv4，可選擇或手動輸入；確認學生連線網址後才寫入設定。多網卡時請選學生電腦可連線的位址。偵測失敗時需手動輸入，不會將 `0.0.0.0` 寫入 `pre_settings.json`。學生 API 仍監聽 `0.0.0.0`，管理 API 的 `.env` 設定維持 `127.0.0.1`。
-3. **安全金鑰 (Admin Token)**：
-   - 系統採用 `ADMIN_TOKEN` 驗證。可手動輸入至少 16 字元的安全金鑰，或由腳本自動產生。前端建置會包含此值，因此管理前端與管理 API 預設都只綁定本機。
-4. **本機 Node.js 部署**：
-   - 自動檢查本機 Node.js 版本（確保 `>= 20.19.0`）。
-   - 自動產生 `host/backend/.env`（雙埠、Token）與 `host/frontend/.env`（管理 API URL、同一 Token）。
-   - 自動啟動 Piston 容器，並透過 `pnpm install` 與 `pnpm build` 建置系統。
-   - 全部設定階段結束後，會詢問是否透過 `start-host.sh` 在前景啟動；預設執行，按 Ctrl+C 停止前後端。
-   - 本次已完成建置時不重複安裝或建置；啟動時會檢查管理 API、學生 API 與管理前端是否就緒。
-5. **Windows 防火牆設定**：以管理員身分執行時，只會開放學生 API Port；不會自動開放管理 API 或前端。
-6. **Piston 評測機語言套件安裝**：
-   - 提供互動選單快速安裝：`Python (3.12.0)` 與 `GCC (C/C++ 10.2.0)`。
-7. **學生端設定自動同步**：
-   - 自動更新 `client-setting/pre_settings.json` 的 `remoteHost` 為伺服器真實 IP 與學生 API Port。
-   - setup 流程不偵測或設定 desktop 專案，也不複製其安裝檔；如需處理安裝檔，另行執行 `build-desktop.sh`。
-   - 即使略過網路組態階段，產生派送設定前仍會偵測並要求確認 IP。
-
----
-
-## Piston 評測機維護 (`piston.sh`)
-
-Piston 是執行學生提交程式碼的沙盒引擎。本專案已套用官方優化參數：
-- **編譯逾時上限**：`PISTON_COMPILE_TIMEOUT=30000`（30 秒，避免被主系統逾時拒絕）。
-- **最大輸出大小**：`PISTON_OUTPUT_MAX_SIZE=65536`（64 KB，保留完整編譯診斷）。
-- **沙盒隔離**：`privileged: true` 與 tmpfs 掛載 `/piston/jobs`。
-- **持久化保存**：語言包保存於 Docker volume，重啟不需重新下載。
-
-### 常用指令：
+如果略過 host 環境設定階段，既有 `.env` 不會被重寫，但其他 setup 階段仍使用本次預設值或環境變數。既有環境使用自訂 Port 時，請在執行前指定一致的值，例如：
 
 ```bash
-# 啟動 Piston 並自動安裝 Python 與 GCC
-bash piston.sh
-
-# 自訂安裝指定語言 (例如加入 Java)
-bash piston.sh python gcc java
+ADMIN_PORT=3101 USER_PORT=3100 FRONTEND_PORT=5174 PISTON_PORT=2100 bash setup.sh
 ```
 
-### 使用 USB 搬移語言套件
+## 第四步：確認 host 可使用
 
-先在來源機器安裝並確認語言可用，再執行 `bash pack-piston/export.sh`。腳本會產生 `pack-piston/piston-packages.tar.gz`，可將此檔案複製到 USB。
+等待終端機顯示服務就緒，再在主機瀏覽器開啟：
 
-使用 `bash setup.sh` 部署時，啟動 Piston 後會詢問「是否匯入 Piston 語言套件」，預設執行。請先將 `piston-packages.tar.gz` 放進 `pack-piston/`；選擇執行後會呼叫 `pack-piston/import.sh`，並使用本次設定的 Piston Port。沒有打包檔案時請輸入 `n`，繼續使用語言安裝階段；匯入成功後可略過 `setup-piston-language.sh`。
+```text
+http://127.0.0.1:5173/judge
+```
 
-在新機器先啟動 Piston 容器，將 USB 中的壓縮檔複製到新機的 `pack-piston/` 目錄，執行 `bash pack-piston/import.sh`。腳本會把套件放進容器、重啟 Piston，並列出可用語言。若 Piston 對外連接埠不是 2000，執行時指定 `PISTON_PORT`。來源與目標機器須使用相容的 Docker 平台架構。
+若使用自訂管理前端 Port，請替換 `5173`。在管理後台確認考卷與評測設定，並執行文末「考試前自我測試」。
 
-匯入後無需再執行 `piston.sh` 的語言安裝步驟。若使用完整 Docker 部署，`host/docker-compose.yml` 目前沒有掛載 `/piston/packages`；重建該容器會失去匯入的套件，需再次匯入。
-
----
-
-## 主系統服務管理
-
-統一透過以下腳本啟動，會檢查 Piston、安裝套件、建置並啟動前後端：
+若 setup 最後沒有啟動 host，或之後需要重啟，在部署工具目錄執行：
 
 ```bash
 bash start-host.sh
 ```
 
-服務會在目前的終端機執行，直接顯示日誌；按 Ctrl+C 停止前後端，再次執行相同指令即可重新啟動。Piston 容器會繼續在背景執行。
+此指令會檢查 Piston、安裝依賴、建置並啟動 host。已完成建置時，也可執行 `bash start-host.sh --skip-build`。保持終端機開啟；按 Ctrl+C 停止 host 前後端，Piston 容器會繼續運行。
 
-`setup.sh` 最後也會詢問是否啟動同一個腳本。若本次已執行 `setup-deploy-host.sh`，會傳入 `--skip-build` 避免重複安裝與建置。
+## 第五步：選擇學生端使用方式
 
----
+### A. 無法安裝桌面程式：另外部署 Online
 
-## 無法安裝桌面程式的教室：Online 獨立部署
-
-先依原流程執行 `bash setup.sh` 完成 host 與 Piston 安裝，並在一個終端機保持 `bash start-host.sh` 運行。另開終端機，在本部署專案執行：
+**先讓 host 保持運行**。若第三步已啟動 host，不需要再啟動一次；請另開第二個終端機，進入本部署工具目錄：
 
 ```bash
+cd /你的路徑/ntut-exam-env-setup
 bash start-online.sh
 ```
 
-此指令獨立於 `setup.sh`，不會重寫 host 設定或重啟 host／Piston。online 建置需要 Node.js 20.19+ 或 22.12+（建議 LTS）、pnpm >= 10；若 pnpm 過舊，先執行 `npm install -g pnpm@10`。
+`start-online.sh` 是獨立流程，不會重寫 host 設定或重啟 host／Piston。首次執行時：
 
-首次執行會：
+1. 讀取 `host/backend/.env` 的管理 Port 與 Token，確認能呼叫 host 管理 API。若連線失敗，先回到第一個終端機確認 host 已就緒。
+2. 使用本目錄或同層的 `ntut-exam-online`；找不到時下載 `ntut-exam-online` 的 `main` 分支。既有專案不會自動更新或切換分支。
+3. 輸入學生網站 Port（預設 `3003`）、TA 後台 Port（預設 `3004`）、學生可連線的伺服器 IPv4，以及作答檔案保存目錄。兩個 Port 不可彼此重複，也不可與 host 的 Port 重複。
+4. 安裝相依套件、建置並啟動。設定保存至 `online-settings.json`，不另存 host Token；每次啟動都會讀取 host 的最新設定。
+5. 在主機防火牆允許學生網站的 TCP Port（預設 `3003`）。此指令不會自動設定防火牆。
+6. 先用一台學生電腦開啟腳本顯示的 `http://伺服器IP:3003`，確認能讀取題目、上傳與評測，再提供給全班。TA 在主機開啟 `http://127.0.0.1:3004`；自訂 Port 時請替換網址中的數字。
 
-1. 讀取既有 `host/backend/.env` 的管理 Port 與 Token，確認 host 管理 API 可連線。
-2. 優先使用本目錄或同層的 `ntut-exam-online`；不存在時 clone `ntut-exam-online/main` 至本目錄。既有專案不會自動 pull 或切換分支。
-3. 詢問 online 學生 Port（預設 `3003`）、TA Port（預設 `3004`）、學生可連線的伺服器 IPv4，以及作答保存目錄。檢查 Port 不與 host 重複，將設定保存為本目錄的 `online-settings.json`。
-4. 安裝依賴、建置學生網站與 TA 後台，啟動 online。學生網站監聽 `0.0.0.0`，TA 後台限 `127.0.0.1`；透過 online 原專案匯出的 Express apps 啟動，不修改原專案程式碼。
+學生網站監聽 `0.0.0.0`，TA 後台只監聽 `127.0.0.1`。考卷與評測設定仍由 host 管理，學生電腦只需要瀏覽器。
 
-學生在瀏覽器開啟腳本顯示的 `http://伺服器IP:3003` 即可作答，不需安裝 desktop。TA 在主機開啟 `http://127.0.0.1:3004`。請在主機防火牆另行允許學生網站的 TCP Port；此指令不會自動修改防火牆。
+online 的日常操作：
 
 ```bash
-# 重新啟動（沿用設定，重新安裝／建置）
+# 沿用設定，重新安裝／建置並啟動
 bash start-online.sh
 
 # 已完成建置時快速啟動
 bash start-online.sh --skip-build
 
-# 重新設定 online Port、IP 與作答目錄
+# 重新設定 Port、IP 與作答保存目錄
 bash start-online.sh --configure
 
-# 指定非標準位置的專案（每次啟動都需指定）
+# 專案不在預設位置時，每次啟動都需指定路徑
 HOST_DIR=/path/to/host ONLINE_DIR=/path/to/ntut-exam-online bash start-online.sh
 ```
 
-按 Ctrl+C 停止 online，host 與 Piston 繼續運行。每次啟動皆重新讀取 host Token；Token 不寫入 online 設定，也不提供給學生前端。修改 host Token 後，需先重啟 host 再啟動 online。
+按 Ctrl+C 停止 online，host 與 Piston 繼續運行。若修改 host Token，請先重啟 host，再重新啟動 online。
 
-online 的 `upload`、`to-judge` 與其他執行資料放在本目錄的 `online-data/`，作答保存目錄預設為 `online-data/target/`；題目附件請放入 `online-data/exam.zip`，未提供時 `/api/pdf` 回傳 404。這些資料與 `online-settings.json` 均已排除 Git 追蹤，請自行備份。考卷與評測設定仍由 host 管理。
+作答保存目錄預設為 `online-data/target/`；`upload`、`to-judge` 與其他執行資料放在 `online-data/`。若需提供題目附件，請放入 `online-data/exam.zip`，未提供時 `/api/pdf` 回傳 404。`online-data/` 與 `online-settings.json` 均不受 Git 追蹤，請自行備份。
 
----
+### B. 可安裝桌面程式：準備 Desktop 派送包
 
-## 學生端應用程式 (`desktop`) 打包與派送
+1. 取得已建置完成的 desktop Windows 安裝檔，放入 `client-setting/` 並命名為 `ntut-code-tester.exe`；請確認是真正的安裝檔，不是 0-byte 佔位檔。
+2. 確認第三步已產生 `client-setting/pre_settings.json`，其中 `remoteHost` 指向伺服器區網 IP 與 **host 學生 API Port**（預設 `3000`）。請以實際設定為準。
+3. 將完整 `client-setting/` 資料夾派送至學生電腦，依下方原有指南安裝與啟動。
 
-學生端應用程式為基於 Electron 開發之客戶端。
+## 維護：Piston 語言套件
 
-### 1. 打包學生端安裝檔 (`build-desktop.sh`)
-
-在 Windows 環境或具備 Wine 的環境下：
+平常重啟服務不需要重新安裝語言套件；套件保存於 Docker named volume `piston-packages`。需要安裝或補充語言時，在部署工具目錄執行：
 
 ```bash
-bash build-desktop.sh
+# 啟動 Piston 並安裝 Python 與 GCC
+bash piston.sh
+
+# 額外安裝指定語言
+bash piston.sh python gcc java
+
+# 使用自訂 Piston Port 時，指定與 host 相同的設定
+PISTON_PORT=2100 bash piston.sh python gcc
 ```
 
-- 選項 `1`：進入 `desktop` 執行 `npm run build:win`，產出安裝檔並自動同步至 `client-setting/ntut-code-tester.exe`。
-- 選項 `2`：僅將 `desktop/dist` 現有安裝檔同步至 `client-setting/`。
-- 選項 `3`：將 `client-setting/` 壓縮為 `client-deploy.zip`，方便直接派送至廣播軟體。
+### 使用 USB 搬移語言套件
+
+1. 在來源主機安裝所需語言，並確認評測可用。
+2. 執行 `bash pack-piston/export.sh`，產生 `pack-piston/piston-packages.tar.gz`。
+3. 將壓縮檔複製到 USB，再放入目標主機的 `pack-piston/` 目錄。來源與目標需使用相容的 Docker 平台架構。
+4. 首次部署時，在 `setup.sh` 的匯入階段選擇執行；已有環境則先啟動 Piston，再執行 `bash pack-piston/import.sh`。自訂 Port 時使用 `PISTON_PORT=2100 bash pack-piston/import.sh`。
+5. 匯入工具會重啟 Piston 並列出可用語言；成功匯入後，可略過線上安裝語言的階段。
+
+本專案的 Piston 容器使用 `privileged`、tmpfs `/piston/jobs` 與 `/tmp`；預設編譯逾時 `30000` 毫秒，輸出上限 `65536` bytes。容器設定請見 `docker-compose.yaml`。
 
 ---
+
+## 學生端應用程式 (`desktop`) 派送指南
 
 ### 2. 學生電腦遠端控制與派送指南 (使用廣播軟體)
 
