@@ -127,6 +127,45 @@ bash start-host.sh
 
 ---
 
+## 無法安裝桌面程式的教室：Online 獨立部署
+
+先依原流程執行 `bash setup.sh` 完成 host 與 Piston 安裝，並在一個終端機保持 `bash start-host.sh` 運行。另開終端機，在本部署專案執行：
+
+```bash
+bash start-online.sh
+```
+
+此指令獨立於 `setup.sh`，不會重寫 host 設定或重啟 host／Piston。online 建置需要 Node.js 20.19+ 或 22.12+（建議 LTS）、pnpm >= 10；若 pnpm 過舊，先執行 `npm install -g pnpm@10`。
+
+首次執行會：
+
+1. 讀取既有 `host/backend/.env` 的管理 Port 與 Token，確認 host 管理 API 可連線。
+2. 優先使用本目錄或同層的 `ntut-exam-online`；不存在時 clone `ntut-exam-online/main` 至本目錄。既有專案不會自動 pull 或切換分支。
+3. 詢問 online 學生 Port（預設 `3003`）、TA Port（預設 `3004`）、學生可連線的伺服器 IPv4，以及作答保存目錄。檢查 Port 不與 host 重複，將設定保存為本目錄的 `online-settings.json`。
+4. 安裝依賴、建置學生網站與 TA 後台，啟動 online。學生網站監聽 `0.0.0.0`，TA 後台限 `127.0.0.1`；透過 online 原專案匯出的 Express apps 啟動，不修改原專案程式碼。
+
+學生在瀏覽器開啟腳本顯示的 `http://伺服器IP:3003` 即可作答，不需安裝 desktop。TA 在主機開啟 `http://127.0.0.1:3004`。請在主機防火牆另行允許學生網站的 TCP Port；此指令不會自動修改防火牆。
+
+```bash
+# 重新啟動（沿用設定，重新安裝／建置）
+bash start-online.sh
+
+# 已完成建置時快速啟動
+bash start-online.sh --skip-build
+
+# 重新設定 online Port、IP 與作答目錄
+bash start-online.sh --configure
+
+# 指定非標準位置的專案（每次啟動都需指定）
+HOST_DIR=/path/to/host ONLINE_DIR=/path/to/ntut-exam-online bash start-online.sh
+```
+
+按 Ctrl+C 停止 online，host 與 Piston 繼續運行。每次啟動皆重新讀取 host Token；Token 不寫入 online 設定，也不提供給學生前端。修改 host Token 後，需先重啟 host 再啟動 online。
+
+online 的 `upload`、`to-judge` 與其他執行資料放在本目錄的 `online-data/`，作答保存目錄預設為 `online-data/target/`；題目附件請放入 `online-data/exam.zip`，未提供時 `/api/pdf` 回傳 404。這些資料與 `online-settings.json` 均已排除 Git 追蹤，請自行備份。考卷與評測設定仍由 host 管理。
+
+---
+
 ## 學生端應用程式 (`desktop`) 打包與派送
 
 學生端應用程式為基於 Electron 開發之客戶端。

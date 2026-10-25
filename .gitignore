@@ -4,4 +4,7 @@ piston
 .DS_Store
 DS_Storec
 host
+ntut-exam-online/
+online-settings.json
+online-data/
 pack-piston/piston-packages.tar.gz
