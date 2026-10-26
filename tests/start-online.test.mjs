@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { parseEnv } from 'node:util';
 import { configureStudentFirewall } from '../start-online.mjs';
 
 const source = new URL('../start-online.mjs', import.meta.url);
@@ -119,6 +120,13 @@ test('首次設定、讀取 host 認證、啟動兩個網站、停止並沿用�
     const settings = await fs.readFile(path.join(root, 'online-settings.json'), 'utf8');
     assert.equal(settings.includes(token), false);
     assert.equal(await fs.readFile(path.join(root, 'host/backend/.env'), 'utf8'), hostEnv);
+    assert.deepEqual({ ...parseEnv(await fs.readFile(path.join(root, 'ntut-exam-online/apps/backend/.env'), 'utf8')) }, {
+        V2_API_URL: `http://127.0.0.1:${hostPort}`, ADMIN_TOKEN: token,
+        USER_PORT: String(userPort), ADMIN_PORT: String(adminPort),
+        TARGET_FOLDER: path.join(root, 'online-data/target').replaceAll('\\', '/'),
+        FRONTEND_DIST_DIR: path.join(root, 'ntut-exam-online/apps/frontend/dist').replaceAll('\\', '/'),
+        TA_DIST_DIR: path.join(root, 'ntut-exam-online/apps/ta/dist').replaceAll('\\', '/'),
+    });
 });
 
 test('未安裝 host 時停止', async (t) => {

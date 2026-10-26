@@ -162,13 +162,17 @@ async function main() {
     }
     const dataDir = path.join(root, 'online-data');
     for (const dir of [dataDir, settings.targetFolder, path.join(dataDir, 'upload'), path.join(dataDir, 'to-judge')]) fs.mkdirSync(dir, { recursive: true });
-    Object.assign(env, {
+    const onlineEnv = {
         V2_API_URL: hostUrl, ADMIN_TOKEN: hostEnv.ADMIN_TOKEN,
         USER_PORT: String(settings.userPort), ADMIN_PORT: String(settings.adminPort),
         TARGET_FOLDER: settings.targetFolder,
         FRONTEND_DIST_DIR: path.join(onlineDir, 'apps/frontend/dist'),
         TA_DIST_DIR: path.join(onlineDir, 'apps/ta/dist'),
-    });
+    };
+    fs.writeFileSync(path.join(onlineDir, 'apps/backend/.env'),
+        Object.entries(onlineEnv).map(([key, value]) => `${key}=${JSON.stringify(value.replaceAll('\\', '/'))}`).join('\n') + '\n',
+        { mode: 0o600 });
+    Object.assign(env, onlineEnv);
     process.chdir(dataDir);
     // 使用原專案的 Express apps，明確限制 TA 僅綁定本機；不修改 online 原始碼。
     const { userApp, adminApp } = await import(pathToFileURL(path.join(onlineDir, 'apps/backend/dist/app.js')).href);

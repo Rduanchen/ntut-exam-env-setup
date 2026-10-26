@@ -133,7 +133,7 @@ bash start-online.sh
 1. 讀取 `host/backend/.env` 的管理 Port 與 Token，確認能呼叫 host 管理 API。若連線失敗，先回到第一個終端機確認 host 已就緒。
 2. 使用本目錄或同層的 `ntut-exam-online`；找不到時下載 `ntut-exam-online` 的 `main` 分支。既有專案不會自動更新或切換分支。
 3. 輸入學生網站 Port（預設 `3003`）、TA 後台 Port（預設 `3004`）、學生可連線的伺服器 IPv4，以及作答檔案保存目錄。兩個 Port 不可彼此重複，也不可與 host 的 Port 重複。
-4. 安裝相依套件、建置並啟動。設定保存至 `online-settings.json`，不另存 host Token；每次啟動都會讀取 host 的最新設定。
+4. 安裝相依套件、建置並啟動。部署選項保存至 `online-settings.json`；每次啟動都會讀取 host 的最新設定，並覆寫 Online 專案的 `apps/backend/.env`，寫入 `V2_API_URL`、`ADMIN_TOKEN`、`USER_PORT`、`ADMIN_PORT`、`TARGET_FOLDER`、`FRONTEND_DIST_DIR` 與 `TA_DIST_DIR`，供之後手動啟動使用。此 `.env` 含有管理 Token，請勿提交或公開。
 5. Windows 啟動時會自動設定學生網站 TCP Port（預設 `3003`）的入站防火牆規則，請以系統管理員身分開啟 Git Bash。若設定失敗，會顯示提示並繼續啟動；可用系統管理員身分重新執行或手動開放該 Port。其他作業系統需自行設定主機防火牆。
 6. 先用一台學生電腦開啟腳本顯示的 `http://伺服器IP:3003`，確認能讀取題目、上傳與評測，再提供給全班。TA 在主機開啟 `http://127.0.0.1:3004`；自訂 Port 時請替換網址中的數字。
 
@@ -157,7 +157,18 @@ HOST_DIR=/path/to/host ONLINE_DIR=/path/to/ntut-exam-online bash start-online.sh
 
 按 Ctrl+C 停止 online，host 與 Piston 繼續運行。若修改 host Token，請先重啟 host，再重新啟動 online。
 
-作答保存目錄預設為 `online-data/target/`；`upload`、`to-judge` 與其他執行資料放在 `online-data/`。若需提供題目附件，請放入 `online-data/exam.zip`，未提供時 `/api/pdf` 回傳 404。`online-data/` 與 `online-settings.json` 均不受 Git 追蹤，請自行備份。
+若已執行過上述流程並成功產生 `.env` 與建置產物，可先停止原本的 Online，再進入 **Online 專案根目錄**手動啟動：
+
+```bash
+cd /你的路徑/ntut-exam-online
+pnpm --filter backend start
+```
+
+後端會自動載入 `apps/backend/.env`，不需手動 `export`；程序已存在的同名環境變數優先於 `.env`。手動啟動不會重新建置、同步 host Token 或設定防火牆。若 host Token 有變更，請重新執行 `start-online.sh --skip-build` 更新 `.env`，或自行更新 `.env` 後重啟後端。
+
+`pnpm --filter backend start` 的工作目錄為 `apps/backend/`，因此 `upload`、`to-judge` 與 `exam.zip` 會使用該目錄；`.env` 中的作答保存目錄與前端絕對路徑仍沿用部署設定。若要沿用啟動工具的 `online-data/` 執行資料，請改從部署工具的 `online-data/` 目錄執行 `node /你的路徑/ntut-exam-online/apps/backend/dist/main.js`。手動入口的 TA 監聽設定由 Online 專案決定，不會套用啟動工具的僅限本機設定。
+
+使用 `start-online.sh` 時，作答保存目錄預設為 `online-data/target/`；`upload`、`to-judge` 與其他執行資料放在 `online-data/`。若需提供題目附件，請放入 `online-data/exam.zip`，未提供時 `/api/pdf` 回傳 404。`online-data/` 與 `online-settings.json` 均不受 Git 追蹤，請自行備份。
 
 ### B. 可安裝桌面程式：準備 Desktop 派送包
 
