@@ -32,6 +32,24 @@ function port(value, label) {
     return Number(value);
 }
 
+export function configureStudentFirewall(userPort, { platform = process.platform, execute = spawnSync } = {}) {
+    if (platform !== 'win32') return false;
+    const value = port(userPort, '學生 Port');
+    const name = `name=NTUT Online Student (${value})`;
+    // 以獨立名稱更新此 Port 的規則，重新啟動時不累積重複規則。
+    execute('netsh.exe', ['advfirewall', 'firewall', 'delete', 'rule', name], { stdio: 'ignore', timeout: 15000 });
+    const result = execute('netsh.exe', [
+        'advfirewall', 'firewall', 'add', 'rule', name,
+        'dir=in', 'action=allow', 'protocol=TCP', `localport=${value}`, 'profile=any',
+    ], { stdio: 'inherit', timeout: 15000 });
+    if (result.error || result.status !== 0) {
+        console.warn(`⚠️ 無法自動開放學生網站 TCP ${value}。請以「系統管理員身分」開啟 Git Bash 後重新執行，或手動設定防火牆；Online 將繼續啟動。`);
+        return false;
+    }
+    console.log(`✅ Windows 防火牆已允許學生網站 TCP ${value}。`);
+    return true;
+}
+
 async function listen(server, port, host) {
     await new Promise((resolve, reject) => {
         server.once('error', reject);
@@ -179,11 +197,14 @@ async function main() {
         stop(1);
         return;
     }
+    const firewallConfigured = configureStudentFirewall(settings.userPort);
     console.log(`✅ 學生網站：http://${settings.serverIp}:${settings.userPort}`);
     console.log(`✅ TA 後台：http://127.0.0.1:${settings.adminPort}`);
     console.log(`作答目錄：${settings.targetFolder}\n執行資料目錄：${dataDir}\n按 Ctrl+C 停止 online。`);
     if (!exists(path.join(dataDir, 'exam.zip'))) console.log(`提示：題目附件請放在 ${path.join(dataDir, 'exam.zip')}，否則 /api/pdf 回傳 404。`);
-    console.log(`請確認主機防火牆允許學生連入 TCP ${settings.userPort}。`);
+    if (!firewallConfigured) console.log(`請確認主機防火牆允許學生連入 TCP ${settings.userPort}。`);
 }
 
-main().catch((error) => { console.error(`❌ ${error.message}`); process.exitCode = 1; });
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    main().catch((error) => { console.error(`❌ ${error.message}`); process.exitCode = 1; });
+}

@@ -6,9 +6,34 @@ import path from 'node:path';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { configureStudentFirewall } from '../start-online.mjs';
 
 const source = new URL('../start-online.mjs', import.meta.url);
 const token = 'test-token-1234567890';
+
+test('Windows 防火牆只開放指定學生 TCP Port，重啟前先清除同名規則', () => {
+    const calls = [];
+    const execute = (...args) => { calls.push(args); return { status: 0 }; };
+    assert.equal(configureStudentFirewall(4321, { platform: 'win32', execute }), true);
+    assert.deepEqual(calls.map(([command, args]) => [command, args]), [
+        ['netsh.exe', ['advfirewall', 'firewall', 'delete', 'rule', 'name=NTUT Online Student (4321)']],
+        ['netsh.exe', ['advfirewall', 'firewall', 'add', 'rule', 'name=NTUT Online Student (4321)',
+            'dir=in', 'action=allow', 'protocol=TCP', 'localport=4321', 'profile=any']],
+    ]);
+    assert.equal(calls[1][2].shell, undefined);
+});
+
+test('非 Windows 不執行防火牆指令', () => {
+    assert.equal(configureStudentFirewall(3003, {
+        platform: 'linux', execute: () => assert.fail('不應呼叫 netsh'),
+    }), false);
+});
+
+test('防火牆新增失敗或無法執行時，不回報成功且不中止網站啟動', () => {
+    for (const result of [{ status: 1 }, { status: null, error: new Error('ENOENT') }]) {
+        assert.equal(configureStudentFirewall(3003, { platform: 'win32', execute: () => result }), false);
+    }
+});
 
 async function fixture(t) {
     const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'online-launcher-')));
