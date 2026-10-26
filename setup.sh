@@ -100,11 +100,11 @@ run_setup_step() {
 run_setup_step setup-download-host.sh
 run_setup_step setup-host-env-config.sh
 run_setup_step setup-node-env-check.sh
+run_setup_step setup-deploy-host.sh
 run_setup_step setup-activate-piston.sh
 run_setup_step setup-import-piston.sh "是否匯入 Piston 語言套件（執行 setup-import-piston.sh）？"
-run_setup_step setup-deploy-host.sh
-run_setup_step setup-firewall.sh
 run_setup_step setup-piston-language.sh
+run_setup_step setup-firewall.sh
 run_setup_step setup-client-config.sh
 run_setup_step start-host.sh "是否使用 start-host.sh 啟動主系統（前景執行，Ctrl+C 停止）？"
 

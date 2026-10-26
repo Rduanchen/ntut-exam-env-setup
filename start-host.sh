@@ -41,14 +41,6 @@ USER_PORT=${USER_PORT:-3000}
 PISTON_PORT=$(sed -n 's/^PISTON_PORT=//p' "$HOST_DIR/backend/.env" | tail -n1)
 PISTON_PORT=${PISTON_PORT:-2000}
 
-# 2. 檢查並啟動 Piston 容器 (若 Docker 可用)
-if command -v docker >/dev/null 2>&1; then
-    echo "=> 確保 Piston 評測機容器正常運行..."
-    PISTON_PORT="$PISTON_PORT" docker compose -f "$SCRIPT_DIR/docker-compose.yaml" up -d
-else
-    echo "⚠️ 警告：找不到 docker 指令。若後端評測機未運行，請確保 Piston 已於某處啟動。"
-fi
-
 # 3. 檢查 Node.js 版本 (要求 >= 20.19.0)
 if ! command -v node >/dev/null 2>&1; then
     echo "❌ 錯誤：找不到 Node.js！請安裝 Node.js >= 20.19.0。"
