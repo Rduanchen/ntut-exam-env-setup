@@ -8,11 +8,15 @@ $VMWARE_FOUND = $false
 $SPYDER_FOUND = $false
 
 Write-Host "[Check] Looking for VS Code..."
+
 $VSCODE_PATH = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe"
+$DESKTOP_PATH = [Environment]::GetFolderPath("Desktop")
+
 if (Test-Path -LiteralPath $VSCODE_PATH) {
     Write-Host "  -> [OK] Found VS Code, launching..." -ForegroundColor Green
     $VSCODE_FOUND = $true
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c start `"`" `"$VSCODE_PATH`"" -WindowStyle Hidden
+
+    Start-Process -FilePath $VSCODE_PATH -ArgumentList "`"$DESKTOP_PATH`""
 } else {
     Write-Host "  -> [FAIL] VS Code not found." -ForegroundColor Red
 }
