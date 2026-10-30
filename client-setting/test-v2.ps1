@@ -37,64 +37,75 @@ if (Test-Path -LiteralPath $VMWARE_PATH_1) {
 }
 
 Write-Host "`n[Check] Looking for Spyder..."
-$SPYDER_PATH = ""
+
 $SPYDER_FOUND = $false
+$SPYDER_PATH = ""
+$PYTHONW_PATH = ""
 
-$spyderCommand = Get-Command "spyder.exe" -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+# Search common Anaconda / Miniconda locations
+$condaRoots = @(
+    "$env:USERPROFILE\anaconda3",
+    "$env:USERPROFILE\miniconda3",
+    "$env:LOCALAPPDATA\anaconda3",
+    "$env:LOCALAPPDATA\miniconda3",
+    "$env:ProgramData\anaconda3",
+    "$env:ProgramData\miniconda3",
+    "C:\Anaconda3",
+    "C:\Miniconda3"
+)
 
-if ($spyderCommand) {
-    $SPYDER_PATH = $spyderCommand.Source
-} else {
-    $spyderPaths = @(
-        "$env:LOCALAPPDATA\Programs\Spyder\Spyder.exe",
-        "$env:LOCALAPPDATA\Spyder\Spyder.exe",
-        "$env:ProgramFiles\Spyder\Spyder.exe",
-        "$env:USERPROFILE\anaconda3\Scripts\spyder.exe",
-        "$env:USERPROFILE\miniconda3\Scripts\spyder.exe",
-        "$env:LOCALAPPDATA\anaconda3\Scripts\spyder.exe",
-        "$env:LOCALAPPDATA\miniconda3\Scripts\spyder.exe",
-        "$env:ProgramData\anaconda3\Scripts\spyder.exe",
-        "$env:ProgramData\miniconda3\Scripts\spyder.exe"
-    )
+# Also detect Conda from PATH
+$condaCommand = Get-Command "conda.exe" -ErrorAction SilentlyContinue
 
-    foreach ($path in $spyderPaths) {
-        if (Test-Path -LiteralPath $path -PathType Leaf) {
-            $SPYDER_PATH = $path
-            break
-        }
+if ($condaCommand) {
+    $condaRoot = Split-Path (Split-Path $condaCommand.Source -Parent) -Parent
+    $condaRoots = @($condaRoot) + $condaRoots
+}
+
+# Find pythonw.exe and spyder-script.py in the same environment
+foreach ($root in ($condaRoots | Select-Object -Unique)) {
+
+    $pythonw = Join-Path $root "pythonw.exe"
+    $spyderScript = Join-Path $root "Scripts\spyder-script.py"
+
+    if (
+        (Test-Path -LiteralPath $pythonw -PathType Leaf) -and
+        (Test-Path -LiteralPath $spyderScript -PathType Leaf)
+    ) {
+        $PYTHONW_PATH = $pythonw
+        $SPYDER_PATH = $spyderScript
+        break
     }
 }
 
-# Start menu shortcuts also cover standalone and custom Conda installations.
-if (-not $SPYDER_PATH) {
-    $startMenuPaths = @(
-        "$env:APPDATA\Microsoft\Windows\Start Menu\Programs",
-        "$env:ProgramData\Microsoft\Windows\Start Menu\Programs"
-    )
+if ($PYTHONW_PATH -and $SPYDER_PATH) {
 
-    $spyderShortcut = Get-ChildItem -LiteralPath $startMenuPaths -Filter "Spyder*.lnk" -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
-
-    if ($spyderShortcut) {
-        $SPYDER_PATH = $spyderShortcut.FullName
-    }
-}
-
-if ($SPYDER_PATH) {
     try {
-        # Equivalent to CMD: set "SSLKEYLOGFILE="
+        # Equivalent to: set "SSLKEYLOGFILE="
         Remove-Item Env:SSLKEYLOGFILE -ErrorAction SilentlyContinue
 
-        # Equivalent to CMD: start "" "spyder.exe"
-        Start-Process -FilePath $SPYDER_PATH -ErrorAction Stop
+        # Equivalent to:
+        # start "" "...\pythonw.exe" "...\Scripts\spyder-script.py"
+        Start-Process `
+            -FilePath $PYTHONW_PATH `
+            -ArgumentList "`"$SPYDER_PATH`"" `
+            -WorkingDirectory (Split-Path $PYTHONW_PATH -Parent) `
+            -ErrorAction Stop
 
         $SPYDER_FOUND = $true
-        Write-Host "  -> [OK] Found Spyder, launched: $SPYDER_PATH" -ForegroundColor Green
+
+        Write-Host "  -> [OK] Spyder launched successfully" -ForegroundColor Green
+        Write-Host "  -> Python: $PYTHONW_PATH"
+        Write-Host "  -> Script: $SPYDER_PATH"
+
     } catch {
         Write-Host "  -> [FAIL] Could not launch Spyder: $_" -ForegroundColor Red
     }
+
 } else {
-    Write-Host "  -> [FAIL] Spyder not found." -ForegroundColor Red
+    Write-Host "  -> [FAIL] Spyder installation not found." -ForegroundColor Red
 }
+
 Write-Host "`n============================================================" -ForegroundColor Cyan
 Write-Host "   Part 2: C Compiler Environment Test" -ForegroundColor Cyan
 Write-Host "============================================================`n" -ForegroundColor Cyan
