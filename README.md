@@ -8,13 +8,13 @@
 
 安裝並確認下列工具：
 
-| 工具 | 需求與用途 |
-| --- | --- |
-| Git | 下載部署工具與 host／online 專案 |
-| Node.js 與 npm | host 需要 Node.js >= 20.19.0；online 支援 Node.js 20.19+ 或 22.12+，不支援 21 |
-| pnpm | host 需要 >= 9；若要使用 online，請準備 >= 10 |
-| Docker Desktop／Docker Engine | 執行 Piston；需先啟動 Docker，並能使用 `docker compose` |
-| curl | 安裝流程用來檢查服務與安裝 Piston 語言套件 |
+| 工具                          | 需求與用途                                                                    |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| Git                           | 下載部署工具與 host／online 專案                                              |
+| Node.js 與 npm                | host 需要 Node.js >= 20.19.0；online 支援 Node.js 20.19+ 或 22.12+，不支援 21 |
+| pnpm                          | host 需要 >= 9；若要使用 online，請準備 >= 10                                 |
+| Docker Desktop／Docker Engine | 執行 Piston；需先啟動 Docker，並能使用 `docker compose`                       |
+| curl                          | 安裝流程用來檢查服務與安裝 Piston 語言套件                                    |
 
 在 Git Bash／終端機檢查：
 
@@ -84,14 +84,14 @@ bash setup.sh
 9. **產生學生端連線設定**：確認 IP 後更新 `client-setting/pre_settings.json`。此階段只產生設定，不會下載或複製 desktop 安裝檔。
 10. **啟動 host**：最後詢問是否執行 `start-host.sh` 時，按 Enter 啟動，並保持此終端機開啟。本次已建置時不會重複建置。
 
-| 服務 | 預設 Port | 使用方式 |
-| --- | --- | --- |
-| host 管理 API | 3001 | 僅本機，供管理前端及 online backend 使用 |
-| host 學生 API | 3000 | 供 desktop 學生端連線 |
-| host 管理前端 | 5173 | 僅本機瀏覽器使用 |
-| Piston | 2000 | 供 host 評測使用 |
-| online 學生網站（選用） | 3003 | 供學生瀏覽器連線 |
-| online TA 後台（選用） | 3004 | 僅本機瀏覽器使用 |
+| 服務                    | 預設 Port | 使用方式                                 |
+| ----------------------- | --------- | ---------------------------------------- |
+| host 管理 API           | 3001      | 僅本機，供管理前端及 online backend 使用 |
+| host 學生 API           | 3000      | 供 desktop 學生端連線                    |
+| host 管理前端           | 5173      | 僅本機瀏覽器使用                         |
+| Piston                  | 2000      | 供 host 評測使用                         |
+| online 學生網站（選用） | 3003      | 供學生瀏覽器連線                         |
+| online TA 後台（選用）  | 3004      | 僅本機瀏覽器使用                         |
 
 如果略過 host 環境設定階段，既有 `.env` 不會被重寫，但其他 setup 階段仍使用本次預設值或環境變數。既有環境使用自訂 Port 時，請在執行前指定一致的值，例如：
 
@@ -212,10 +212,11 @@ PISTON_PORT=2100 bash piston.sh python gcc
 將 `client-setting` 資料夾派送到學生電腦（例如桌面），在學生電腦上以管理員身分執行：
 
 ```bat
-"%USERPROFILE%\Desktop\client-setting\test-deploy-v2.bat"
+start "" "%USERPROFILE%\Desktop\client-setting\test-deploy-v2.bat" && exit
 ```
 
 此腳本將自動執行：
+
 1. **執行 `test-v2.ps1` 進行環境測試**：檢測並啟動 VS Code、VMware、Spyder，檢測 C/C++ 編譯器（gcc/g++/clang 指標與記憶體測試）以及 Python 執行環境。
 2. **自動安裝 `ntut-code-tester.exe`**。
 3. **部署 `pre_settings.json`** 至應用程式目錄。
@@ -226,17 +227,20 @@ PISTON_PORT=2100 bash piston.sh python gcc
 #### 步驟 B：手動分步指令
 
 1. **安裝學生端程式**：
+
    ```bat
    "%USERPROFILE%\Desktop\ntut-code-tester-2.9.0-setup.exe" && exit
    ```
 
 2. **刪除安裝檔**：
+
    ```bat
    del "%USERPROFILE%\Desktop\ntut-code-tester-2.9.0-setup.exe" && exit
    ```
 
 3. **派送 `pre_settings.json` 設定檔**：
    請確認檔案內容中的 `remoteHost` 已指向伺服器真實 IP：
+
    ```json
    {
      "testTitle": "北科大計算機程式設計考試",
@@ -244,12 +248,15 @@ PISTON_PORT=2100 bash piston.sh python gcc
      "remoteHost": "http://192.168.1.100:3001"
    }
    ```
+
    將此檔案派送至學生桌面後，執行以下指令移動至程式資源目錄：
+
    ```bat
    move /Y "%USERPROFILE%\Desktop\pre_settings.json" "%LOCALAPPDATA%\Programs\ntut-code-tester\resources\pre_settings.json" && exit
    ```
 
 4. **啟動學生端應用程式**：
+
    ```bat
    start "" "%LOCALAPPDATA%\Programs\ntut-code-tester\NTUTOnMachineTest.exe" && exit
    ```
@@ -264,6 +271,7 @@ PISTON_PORT=2100 bash piston.sh python gcc
 ## 考試前自我測試
 
 主系統部署完成後，請於瀏覽器進入管理後台：
+
 - **網址**：`http://127.0.0.1:5173/judge`（在主機本機開啟；自訂前端 Port 時請替換）
 - 切換至 **Deploy Test** 分頁：
   - 系統將會發送 probe 測試 Piston 的 C、C++、Python 實際編譯與運行狀態。
