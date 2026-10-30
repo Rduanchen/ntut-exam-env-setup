@@ -50,14 +50,29 @@ copy /Y "%~dp0pre_settings.json" "%TARGET_DIR%\resources\pre_settings.json"
 if errorlevel 1 exit /b 1
 echo [OK] pre_settings.json deployed.
 
+
 echo.
 echo ========================================
 echo      Starting ntut-code-tester
 echo ========================================
+
 set "TARGET_EXE=%TARGET_DIR%\NTUTOnMachineTest.exe"
+
 echo [OK] Starting application: "%TARGET_EXE%"
-start "" "%TARGET_EXE%"
-exit /b %ERRORLEVEL%
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath $env:TARGET_EXE -WorkingDirectory $env:TARGET_DIR"
+
+exit /b 0
+
+
+@REM  echo.
+@REM  echo ========================================
+@REM  echo      Starting ntut-code-tester
+@REM  echo ========================================
+@REM  set "TARGET_EXE=%TARGET_DIR%\NTUTOnMachineTest.exe"
+@REM  echo [OK] Starting application: "%TARGET_EXE%"
+@REM  start "" "%TARGET_EXE%"
+@REM  exit /b %ERRORLEVEL%
 
 :installer_missing
 echo [Error] No non-empty ntut-code-tester installer found in "%~dp0"
