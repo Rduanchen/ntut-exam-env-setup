@@ -34,7 +34,10 @@ if (Test-Path -LiteralPath $VMWARE_PATH_1) {
 
 Write-Host "`n[Check] Looking for Spyder..."
 $SPYDER_PATH = ""
+$SPYDER_FOUND = $false
+
 $spyderCommand = Get-Command "spyder.exe" -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+
 if ($spyderCommand) {
     $SPYDER_PATH = $spyderCommand.Source
 } else {
@@ -49,6 +52,7 @@ if ($spyderCommand) {
         "$env:ProgramData\anaconda3\Scripts\spyder.exe",
         "$env:ProgramData\miniconda3\Scripts\spyder.exe"
     )
+
     foreach ($path in $spyderPaths) {
         if (Test-Path -LiteralPath $path -PathType Leaf) {
             $SPYDER_PATH = $path
@@ -63,13 +67,22 @@ if (-not $SPYDER_PATH) {
         "$env:APPDATA\Microsoft\Windows\Start Menu\Programs",
         "$env:ProgramData\Microsoft\Windows\Start Menu\Programs"
     )
+
     $spyderShortcut = Get-ChildItem -LiteralPath $startMenuPaths -Filter "Spyder*.lnk" -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($spyderShortcut) { $SPYDER_PATH = $spyderShortcut.FullName }
+
+    if ($spyderShortcut) {
+        $SPYDER_PATH = $spyderShortcut.FullName
+    }
 }
 
 if ($SPYDER_PATH) {
     try {
+        # Equivalent to CMD: set "SSLKEYLOGFILE="
+        Remove-Item Env:SSLKEYLOGFILE -ErrorAction SilentlyContinue
+
+        # Equivalent to CMD: start "" "spyder.exe"
         Start-Process -FilePath $SPYDER_PATH -ErrorAction Stop
+
         $SPYDER_FOUND = $true
         Write-Host "  -> [OK] Found Spyder, launched: $SPYDER_PATH" -ForegroundColor Green
     } catch {
@@ -78,7 +91,6 @@ if ($SPYDER_PATH) {
 } else {
     Write-Host "  -> [FAIL] Spyder not found." -ForegroundColor Red
 }
-
 Write-Host "`n============================================================" -ForegroundColor Cyan
 Write-Host "   Part 2: C Compiler Environment Test" -ForegroundColor Cyan
 Write-Host "============================================================`n" -ForegroundColor Cyan
